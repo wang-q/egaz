@@ -62,7 +62,7 @@ GetOptions(
     'help|?'              => \$help,
     'man'                 => \$man,
     'pb|path_blastz=s'    => \$path_blastz,
-    'pl|path_normalize=s' => \$path_normalize,
+    'pn|path_normalize=s' => \$path_normalize,
     'pl|path_lav2axt=s'   => \$path_lav2axt,
     'dt|dir_target=s'     => \$dir_target,
     'dq|dir_query=s'      => \$dir_query,
@@ -360,10 +360,14 @@ __END__
 
       Executable files:
         -pb, --path_blastz      path to blastz executable file
+        -pn, --path_normalize   path to normalize_lav.pl
         -pl, --path_lav2axt     path to lav2axt.pl
-        
+
       Predefined parameter set:  
         -s,  --specified        use a predefined parameter set
+        
+      Relationship
+        --paired                relationship of target and query is one to one
 
       Scoring parameters:
         -O                      gap-open penalty

@@ -89,11 +89,11 @@ set10:
   O: 400
   Q: distant
 set11:
-  comment: "long indels for yeasts"
+  comment: "300bp indels for yeasts"
   C: 2
   E: 30
   K: 3000
   L: 2200
   O: 400
   Q: similar
-  Y: 15400
+  Y: 9400

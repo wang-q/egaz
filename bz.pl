@@ -41,6 +41,9 @@ my $paired;
 my ( $dir_target, $dir_query );
 my $dir_lav = ".";
 
+# don't convert to axt
+my $noaxt = 0;
+
 my %opt = (
     O => undef,
     E => undef,
@@ -83,6 +86,7 @@ GetOptions(
     'H=s'                 => \$opt{H},
     'Y=s'                 => \$opt{Y},
     'Z=s'                 => \$opt{Z},
+    'noaxt'               => \$noaxt,
 ) or pod2usage(2);
 
 pod2usage(1) if $help;
@@ -97,8 +101,9 @@ my $parameters = LoadFile("$FindBin::Bin/parameters.yaml");
 if ($specified) {
     print "*** Use parameter set $specified\n";
     my $para_set = $parameters->{$specified};
-    foreach my $key ( keys %{$para_set} ) {
+    for my $key ( keys %{$para_set} ) {
         next if $key eq "comment";
+        next if defined $opt{$key};
         $opt{$key} = $para_set->{$key};
         print "$key = $opt{$key} ";
     }
@@ -196,9 +201,8 @@ printf "\n----%4s .fa files for query----\n",  scalar @query_files;
         # use the most similar chr name
         for my $target_file ( sort @target_files ) {
             my $t_base = basename($target_file);
-            my ($query_file)
-                = map { $_->[0] }
-                sort  { $b->[1] <=> $a->[1] }
+            my ($query_file) = map { $_->[0] }
+                sort { $b->[1] <=> $a->[1] }
                 map { [ $_, compare( basename($_), $t_base ) ] } @query_files;
             push @jobs, "$target_file|$query_file";
         }
@@ -237,10 +241,10 @@ if ( $t_parted or $q_parted ) {
 
     my ( %t_length, %q_length );
     if ($t_parted) {
-        %t_length = read_length_csv( $dir_target, 'length.csv' );
+        %t_length = read_sizes( $dir_target, 'chr.sizes' );
     }
     if ($q_parted) {
-        %q_length = read_length_csv( $dir_query, 'length.csv' );
+        %q_length = read_sizes( $dir_query, 'chr.sizes' );
     }
 
     for my $file (@lav_files) {
@@ -273,7 +277,7 @@ if ( $t_parted or $q_parted ) {
 #----------------------------------------------------------#
 # lav2axt section
 #----------------------------------------------------------#
-{
+if ( !$noaxt ) {
     my @lav_files = File::Find::Rule->file->name('*.lav')->in($dir_lav);
     printf "\n----%4s .lav files to be converted ----\n", scalar @lav_files;
 
@@ -321,12 +325,12 @@ sub exec_cmd {
     system $cmd;
 }
 
-sub read_length_csv {
+sub read_sizes {
     my $fh = file(@_)->openr;
     my %length_of;
     while (<$fh>) {
         chomp;
-        my ( $key, $value ) = split /,/;
+        my ( $key, $value ) = split /\t/;
         $length_of{$key} = $value;
     }
 

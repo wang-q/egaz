@@ -88,10 +88,10 @@ for my $file (@files) {
 }
 
 {
-    my $file = file( $out_dir, "length.csv" );
+    my $file = file( $out_dir, "chr.sizes" );
     my $fh = $file->openw;
     for my $key ( sort keys %length_of ) {
-        print {$fh} "$key,$length_of{$key}\n";
+        print {$fh} "$key\t$length_of{$key}\n";
     }
 }
 

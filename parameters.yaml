@@ -9,12 +9,13 @@ set01:
   Q: similar
   Y: 3400
 set02:
-  comment: PanTro2vsHg18
+  comment: "Hg19vsPanTro2, Hg19vsRheMac2, Hg19vsCalJac3"
   C: 2
   E: 150
   H: 2000
   K: 4500
   L: 2200
+  M: 254
   O: 600
   Q: similar2
   T: 2
@@ -89,7 +90,7 @@ set10:
   O: 400
   Q: distant
 set11:
-  comment: "300bp indels for yeasts"
+  comment: "300bp indels for yeasts, all others are same as set01"
   C: 2
   E: 30
   K: 3000

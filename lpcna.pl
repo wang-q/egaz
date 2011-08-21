@@ -33,6 +33,10 @@ my $dir_lav = ".";
 # Or specify a piecewise linearGap tab delimited file.
 my $linearGap = "medium";
 
+# axtChain minScore
+# Minimum score for chain
+my $minScore = "5000";
+
 # run in parallel mode
 my $parallel = 1;
 
@@ -46,7 +50,8 @@ GetOptions(
     'dt|dir_target=s' => \$dir_target,
     'dq|dir_query=s'  => \$dir_query,
     'dl|dir_lav=s'    => \$dir_lav,
-    'l|linearGap=i'    => \$linearGap,
+    'l|linearGap=i'   => \$linearGap,
+    'm|minScore=i'    => \$minScore,
     'p|parallel=i'    => \$parallel,
 ) or pod2usage(2);
 
@@ -73,7 +78,8 @@ my $dir_per_chr = "$dir_lav/chr";
     print "Processing...\n";
 
     # faSize - print total base count in fa files.
-    # faSize file(s).fa
+    # usage:
+    #   faSize file(s).fa
     my $cmd
         = "$kent_bin/faSize -detailed"
         . " $dir_target/*.fa"
@@ -86,49 +92,66 @@ my $dir_per_chr = "$dir_lav/chr";
         . " > $dir_query/chr.sizes";
     exec_cmd($cmd);
 
-    print "\n";
-    print "Runtime ", duration( time - $start_time ), ".\n";
-    print "=" x 30, "\n";
-}
-
-{
-    my @files
-        = File::Find::Rule->file->name('*.fa')->in( $dir_target, $dir_query );
-    printf "\n----%4s .fa files to be converted ----\n", scalar @files;
-
-    my $worker = sub {
-        my $job = shift;
-        my $opt = shift;
-
-        my $file   = $job;
-        my $output = $file;
-        $output =~ s/fa$/nib/;
-
-        # faToNib - Convert from .fa to .nib format
-        # faToNib [options] in.fa out.nib
-        my $cmd = "$kent_bin/faToNib -softMask" . " $file" . " $output";
-        exec_cmd($cmd);
-
-        return;
-    };
-
-    my @jobs = sort @files;
-
-    my $start_time = time;
-    print "\n", "=" x 30, "\n";
-    print "Processing...\n";
-
-    my $run = AlignDB::Run->new(
-        parallel => $parallel,
-        jobs     => \@jobs,
-        code     => $worker,
-    );
-    $run->run;
+    # faToTwoBit - Convert DNA from fasta to 2bit format
+    # usage:
+    #    faToTwoBit in.fa [in2.fa in3.fa ...] out.2bit
+    $cmd
+        = "$kent_bin/faToTwoBit"
+        . " $dir_target/*.fa"
+        . " $dir_target/chr.2bit";
+    exec_cmd($cmd);
+    
+    $cmd
+        = "$kent_bin/faToTwoBit"
+        . " $dir_query/*.fa"
+        . " $dir_query/chr.2bit";
+    exec_cmd($cmd);
 
     print "\n";
     print "Runtime ", duration( time - $start_time ), ".\n";
     print "=" x 30, "\n";
 }
+
+# use combined .2bit file instead of dir of nibs
+#{
+#    my @files
+#        = File::Find::Rule->file->name('*.fa')->in( $dir_target, $dir_query );
+#    printf "\n----%4s .fa files to be converted ----\n", scalar @files;
+#
+#    my $worker = sub {
+#        my $job = shift;
+#        my $opt = shift;
+#
+#        my $file   = $job;
+#        my $output = $file;
+#        $output =~ s/fa$/nib/;
+#
+#        # faToNib - Convert from .fa to .nib format
+#        # usage:
+#        #   faToNib [options] in.fa out.nib
+#        my $cmd = "$kent_bin/faToNib -softMask" . " $file" . " $output";
+#        exec_cmd($cmd);
+#
+#        return;
+#    };
+#
+#    my @jobs = sort @files;
+#
+#    my $start_time = time;
+#    print "\n", "=" x 30, "\n";
+#    print "Processing...\n";
+#
+#    my $run = AlignDB::Run->new(
+#        parallel => $parallel,
+#        jobs     => \@jobs,
+#        code     => $worker,
+#    );
+#    $run->run;
+#
+#    print "\n";
+#    print "Runtime ", duration( time - $start_time ), ".\n";
+#    print "=" x 30, "\n";
+#}
 
 #----------------------------------------------------------#
 # lavToPsl section
@@ -146,7 +169,8 @@ my $dir_per_chr = "$dir_lav/chr";
         $output =~ s/lav$/psl/;
 
         # lavToPsl - Convert blastz lav to psl format
-        # lavToPsl in.lav out.psl
+        # usage:
+        #   lavToPsl in.lav out.psl
         print "Run lavToPsl...\n";
         my $cmd = "$kent_bin/lavToPsl" . " $file" . " $output";
         exec_cmd($cmd);
@@ -189,13 +213,16 @@ my $dir_per_chr = "$dir_lav/chr";
         $output =~ s/psl$/chain/;
 
         # axtChain - Chain together axt alignments.
-        # axtChain -linearGap=loose in.axt tNibDir qNibDir out.chain
+        # usage:
+        #   axtChain -linearGap=loose in.axt tNibDir qNibDir out.chain
+        # Where tNibDir/qNibDir are either directories full of nib files, or the
+        # name of a .2bit file
         print "Run axtChain...\n";
         my $cmd
-            = "$kent_bin/axtChain -linearGap=$linearGap -psl" 
+            = "$kent_bin/axtChain -minScore=$minScore -linearGap=$linearGap -psl" 
             . " $file"
-            . " $dir_target"
-            . " $dir_query"
+            . " $dir_target/chr.2bit"
+            . " $dir_query/chr.2bit"
             . " $output";
         exec_cmd($cmd);
         print ".chain file generated.\n\n";
@@ -230,7 +257,8 @@ my $dir_per_chr = "$dir_lav/chr";
     print "Processing...\n";
 
     # chainMergeSort - Combine sorted files into larger sorted file
-    # chainMergeSort file(s)
+    # usage:
+    #   chainMergeSort file(s)
     my $cmd
         = "$kent_bin/chainMergeSort"
         . " $dir_lav/*.chain"
@@ -238,7 +266,8 @@ my $dir_per_chr = "$dir_lav/chr";
     exec_cmd($cmd);
 
     # chainPreNet - Remove chains that don't have a chance of being netted
-    # chainPreNet in.chain target.sizes query.sizes out.chain
+    # usage:
+    #   chainPreNet in.chain target.sizes query.sizes out.chain
     $cmd
         = "$kent_bin/chainPreNet"
         . " $dir_lav/all.chain"
@@ -248,7 +277,8 @@ my $dir_per_chr = "$dir_lav/chr";
     exec_cmd($cmd);
 
     # chainNet - Make alignment nets out of chains
-    # chainNet in.chain target.sizes query.sizes target.net query.net
+    # usage:
+    #   chainNet in.chain target.sizes query.sizes target.net query.net
     $cmd
         = "$kent_bin/chainNet -minSpace=1"
         . " $dir_lav/all.pre.chain"
@@ -259,7 +289,8 @@ my $dir_per_chr = "$dir_lav/chr";
     exec_cmd($cmd);
 
     # netSyntenic - Add synteny info to net.
-    # netSyntenic in.net out.net
+    # usage:
+    #   netSyntenic in.net out.net
     $cmd
         = "$kent_bin/netSyntenic"
         . " $dir_lav/target.chainnet"
@@ -267,7 +298,8 @@ my $dir_per_chr = "$dir_lav/chr";
     exec_cmd($cmd);
 
     # netSplit - Split a genome net file into chromosome net files
-    # netSplit in.net outDir
+    # usage:
+    #   netSplit in.net outDir
     $cmd = "$kent_bin/netSplit" . " $dir_lav/target.net" . " $dir_per_chr";
     exec_cmd($cmd);
 
@@ -292,16 +324,22 @@ my $dir_per_chr = "$dir_lav/chr";
         $output =~ s/net$/axt/;
 
         # netToAxt - Convert net (and chain) to axt.
-        # netToAxt in.net in.chain target.2bit query.2bit out.axt
+        # usage:
+        #   netToAxt in.net in.chain target.2bit query.2bit out.axt
+        # note:
+        # directories full of .nib files (an older format)
+        # may also be used in place of target.2bit and query.2bit.
+        #   
         # axtSort - Sort axt files
-        # axtSort in.axt out.axt
+        # usage:
+        #   axtSort in.axt out.axt
         print "Run netToAxt...\n";
         my $cmd
             = "$kent_bin/netToAxt" 
             . " $file"
             . " $dir_lav/all.pre.chain"
-            . " $dir_target"
-            . " $dir_query"
+            . " $dir_target/chr.2bit"
+            . " $dir_query/chr.2bit"
             . " stdout | $kent_bin/axtSort stdin"
             . " $output";
         exec_cmd($cmd);

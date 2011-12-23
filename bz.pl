@@ -394,9 +394,8 @@ __END__
       Speedup parameters:
         -Z                      increment between successive words
     
-    >perl part_seq.pl -in t\RM11 -out t\parted -chunk 500000
-    >dos2unix *.fa
-    >perl bz.pl -dt t\S288C\chr01.fa -dq t\parted -s set01 -dl test -qp
+    >perl part_seq.pl -in t\RM11 -out t\RM11_parted -chunk 500000
+    >perl bz.pl -dt t\S288C\chr01.fa -dq t\RM11_parted -s set01 -dl test -qp
     
     >perl part_seq.pl -in t\S288C -out t\S288C_parted -chunk 500000
     >perl bz.pl -dt t\S288C_parted -dq t\RM11\rm11.fa -s set01 -dl test -tp -p 4

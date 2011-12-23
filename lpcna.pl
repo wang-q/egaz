@@ -46,7 +46,7 @@ my $help = 0;
 GetOptions(
     'help|?'          => \$help,
     'man'             => \$man,
-    'k|kent_bin=s'    => \$kent_bin,
+    'bin|kent_bin=s'  => \$kent_bin,
     'dt|dir_target=s' => \$dir_target,
     'dq|dir_query=s'  => \$dir_query,
     'dl|dir_lav=s'    => \$dir_lav,
@@ -100,11 +100,8 @@ my $dir_per_chr = "$dir_lav/chr";
         . " $dir_target/*.fa"
         . " $dir_target/chr.2bit";
     exec_cmd($cmd);
-    
-    $cmd
-        = "$kent_bin/faToTwoBit"
-        . " $dir_query/*.fa"
-        . " $dir_query/chr.2bit";
+
+    $cmd = "$kent_bin/faToTwoBit" . " $dir_query/*.fa" . " $dir_query/chr.2bit";
     exec_cmd($cmd);
 
     print "\n";
@@ -217,12 +214,25 @@ my $dir_per_chr = "$dir_lav/chr";
         #   axtChain -linearGap=loose in.axt tNibDir qNibDir out.chain
         # Where tNibDir/qNibDir are either directories full of nib files, or the
         # name of a .2bit file
+        #
+        # chainAntiRepeat - Get rid of chains that are primarily the results of
+        # repeats and degenerate DNA
+        # usage:
+        #    chainAntiRepeat tNibDir qNibDir inChain outChain
+        # options:
+        #    -minScore=N - minimum score (after repeat stuff) to pass
+        #    -noCheckScore=N - score that will pass without checks (speed tweak)
         print "Run axtChain...\n";
         my $cmd
-            = "$kent_bin/axtChain -minScore=$minScore -linearGap=$linearGap -psl" 
+            = "$kent_bin/axtChain -minScore=$minScore -linearGap=$linearGap -psl"
             . " $file"
             . " $dir_target/chr.2bit"
             . " $dir_query/chr.2bit"
+            . " stdout"
+            . " | $kent_bin/chainAntiRepeat"
+            . " $dir_target/chr.2bit"
+            . " $dir_query/chr.2bit"
+            . " stdin"
             . " $output";
         exec_cmd($cmd);
         print ".chain file generated.\n\n";
@@ -329,7 +339,7 @@ my $dir_per_chr = "$dir_lav/chr";
         # note:
         # directories full of .nib files (an older format)
         # may also be used in place of target.2bit and query.2bit.
-        #   
+        #
         # axtSort - Sort axt files
         # usage:
         #   axtSort in.axt out.axt

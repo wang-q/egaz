@@ -61,13 +61,20 @@ pod2usage( -exitstatus => 0, -verbose => 2 ) if $man;
 #----------------------------------------------------------#
 # Init
 #----------------------------------------------------------#
-# make lav dir
+# make dirs
 unless ( -e $dir_lav ) {
     mkdir $dir_lav, 0777
         or die "Cannot create \"$dir_lav\" directory: $!";
 }
 
-my $dir_per_chr = "$dir_lav/chr";
+my $dir_net    = "$dir_lav/net";
+my $dir_axtnet = "$dir_lav/axtNet";
+for ( $dir_net, $dir_axtnet ) {
+    unless ( -e $_ ) {
+        mkdir $_, 0777
+            or die "Cannot create \"$_\" directory: $!";
+    }
+}
 
 #----------------------------------------------------------#
 # fa section
@@ -92,6 +99,8 @@ my $dir_per_chr = "$dir_lav/chr";
         . " > $dir_query/chr.sizes";
     exec_cmd($cmd);
 
+    # use combined .2bit file instead of dir of nibs
+
     # faToTwoBit - Convert DNA from fasta to 2bit format
     # usage:
     #    faToTwoBit in.fa [in2.fa in3.fa ...] out.2bit
@@ -108,47 +117,6 @@ my $dir_per_chr = "$dir_lav/chr";
     print "Runtime ", duration( time - $start_time ), ".\n";
     print "=" x 30, "\n";
 }
-
-# use combined .2bit file instead of dir of nibs
-#{
-#    my @files
-#        = File::Find::Rule->file->name('*.fa')->in( $dir_target, $dir_query );
-#    printf "\n----%4s .fa files to be converted ----\n", scalar @files;
-#
-#    my $worker = sub {
-#        my $job = shift;
-#        my $opt = shift;
-#
-#        my $file   = $job;
-#        my $output = $file;
-#        $output =~ s/fa$/nib/;
-#
-#        # faToNib - Convert from .fa to .nib format
-#        # usage:
-#        #   faToNib [options] in.fa out.nib
-#        my $cmd = "$kent_bin/faToNib -softMask" . " $file" . " $output";
-#        exec_cmd($cmd);
-#
-#        return;
-#    };
-#
-#    my @jobs = sort @files;
-#
-#    my $start_time = time;
-#    print "\n", "=" x 30, "\n";
-#    print "Processing...\n";
-#
-#    my $run = AlignDB::Run->new(
-#        parallel => $parallel,
-#        jobs     => \@jobs,
-#        code     => $worker,
-#    );
-#    $run->run;
-#
-#    print "\n";
-#    print "Runtime ", duration( time - $start_time ), ".\n";
-#    print "=" x 30, "\n";
-#}
 
 #----------------------------------------------------------#
 # lavToPsl section
@@ -289,28 +257,54 @@ my $dir_per_chr = "$dir_lav/chr";
     # chainNet - Make alignment nets out of chains
     # usage:
     #   chainNet in.chain target.sizes query.sizes target.net query.net
+    #
+    # netSyntenic - Add synteny info to net.
+    # usage:
+    #   netSyntenic in.net out.net
     $cmd
         = "$kent_bin/chainNet -minSpace=1"
         . " $dir_lav/all.pre.chain"
         . " $dir_target/chr.sizes"
         . " $dir_query/chr.sizes"
-        . " $dir_lav/target.chainnet"
-        . " /dev/null";
+        . " stdout"    # $dir_lav/target.chainnet
+        . " /dev/null"
+        . " | $kent_bin/netSyntenic"
+        . " stdin"
+        . " $dir_lav/noClass.net";
     exec_cmd($cmd);
 
-    # netSyntenic - Add synteny info to net.
+    # netChainSubset - Create chain file with subset of chains that appear in
+    # the net
     # usage:
-    #   netSyntenic in.net out.net
+    #    netChainSubset in.net in.chain out.chain
+    # options:
+    #    -gapOut=gap.tab - Output gap sizes to file
+    #    -type=XXX - Restrict output to particular type in net file
+    #    -splitOnInsert - Split chain when get an insertion of another chain
+    #    -wholeChains - Write entire chain references by net, don't split
+    #     when a high-level net is encoundered.  This is useful when nets
+    #     have been filtered.
+    #    -skipMissing - skip chains that are not found instead of generating
+    #     an error.  Useful if chains have been filtered.
+    #
+    # chainStitchId - Join chain fragments with the same chain ID into a single
+    #    chain per ID.  Chain fragments must be from same original chain but
+    #    must not overlap.  Chain fragment scores are summed.
+    # usage:
+    #    chainStitchId in.chain out.chain
     $cmd
-        = "$kent_bin/netSyntenic"
-        . " $dir_lav/target.chainnet"
-        . " $dir_lav/target.net";
+        = "$kent_bin/netChainSubset -verbose=0 $dir_lav/noClass.net"
+        . " $dir_lav/all.chain"
+        . " stdout"
+        . " | $kent_bin/chainStitchId"
+        . " stdin"
+        . " $dir_lav/over.chain";
     exec_cmd($cmd);
 
     # netSplit - Split a genome net file into chromosome net files
     # usage:
     #   netSplit in.net outDir
-    $cmd = "$kent_bin/netSplit" . " $dir_lav/target.net" . " $dir_per_chr";
+    $cmd = "$kent_bin/netSplit" . " $dir_lav/noClass.net" . " $dir_net";
     exec_cmd($cmd);
 
     print "\n";
@@ -322,7 +316,7 @@ my $dir_per_chr = "$dir_lav/chr";
 # netToAxt section
 #----------------------------------------------------------#
 {
-    my @files = File::Find::Rule->file->name('*.net')->in($dir_per_chr);
+    my @files = File::Find::Rule->file->name('*.net')->in($dir_net);
     printf "\n----%4s .net files to be converted ----\n", scalar @files;
 
     my $worker = sub {
@@ -330,8 +324,8 @@ my $dir_per_chr = "$dir_lav/chr";
         my $opt = shift;
 
         my $file   = $job;
-        my $output = $file;
-        $output =~ s/net$/axt/;
+        my $output = basename($file);
+        $output .= ".axt";
 
         # netToAxt - Convert net (and chain) to axt.
         # usage:
@@ -350,8 +344,9 @@ my $dir_per_chr = "$dir_lav/chr";
             . " $dir_lav/all.pre.chain"
             . " $dir_target/chr.2bit"
             . " $dir_query/chr.2bit"
-            . " stdout | $kent_bin/axtSort stdin"
-            . " $output";
+            . " stdout"
+            . " | $kent_bin/axtSort stdin"
+            . " $dir_axtnet/$output";
         exec_cmd($cmd);
         print ".axt file generated.\n\n";
 
@@ -413,13 +408,6 @@ __END__
 
       Output .lav and .axt
         -dl, --dir_lav          where .lav and .axt files storess
-    
-    >perl part_seq.pl -in t\RM11 -out t\parted -chunk 500000
-    >dos2unix *.fa
-    >perl bz.pl -dt t\S288C\chr01.fa -dq t\parted -s set01 -dl test -qp
-    
-    >perl part_seq.pl -in t\S288C -out t\S288C_parted -chunk 500000
-    >perl bz.pl -dt t\S288C_parted -dq t\RM11\rm11.fa -s set01 -dl test -tp -p 4
 
 =head1 OPTIONS
 

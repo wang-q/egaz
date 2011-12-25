@@ -4,9 +4,11 @@ use warnings;
 
 use Getopt::Long;
 use Pod::Usage;
+use YAML qw(Dump Load DumpFile LoadFile);
+
+use AlignDB::Util qw(:all);
 
 use File::Slurp;
-use AlignDB::Util qw(:all);
 
 #----------------------------------------------------------#
 # GetOpt section
@@ -44,7 +46,7 @@ my $d_stanza = shift @lavs;    # Not needed by this program
 open my $outfh, '>', $output;
 my $align_id = 0;
 my %cache;                     # cache fasta files
-foreach my $lav (@lavs) {
+for my $lav (@lavs) {
 
     #----------------------------#
     # s-stanza
@@ -193,14 +195,14 @@ __END__
 
 =head1 SYNOPSIS
 
-    lav2axt.pl -l <lavfile> -o <output>
+    lav2axt.pl -l <lavfile(s)> -o <output>
 
     lav2axt.pl [options]
-     Options:
-       -h, --help               brief help message
-       -m, --man                full documentation
-       -l, --lavfile
-       -o, --output
+      Options:
+        -h, --help              brief help message
+        -m, --man               full documentation
+        -l, --lavfile
+        -o, --output
 
 =head1 OPTIONS
 

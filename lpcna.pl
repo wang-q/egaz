@@ -27,15 +27,17 @@ my $kent_bin = "~/bin/x86_64";
 my ( $dir_target, $dir_query );
 my $dir_lav = ".";
 
+# Human18vsChimp2 use loose and 1000
+# Human19vsChimp3 use medium and 5000
 # axtChain linearGap
 # loose is chicken/human linear gap costs.
 # medium is mouse/human linear gap costs.
 # Or specify a piecewise linearGap tab delimited file.
-my $linearGap = "medium";
+my $linearGap = "loose";
 
 # axtChain minScore
 # Minimum score for chain
-my $minScore = "5000";
+my $minScore = "1000";
 
 # run in parallel mode
 my $parallel = 1;
@@ -61,6 +63,10 @@ pod2usage( -exitstatus => 0, -verbose => 2 ) if $man;
 #----------------------------------------------------------#
 # Init
 #----------------------------------------------------------#
+my $start_time = time;
+print "\n", "=" x 30, "\n";
+print "Processing...\n";
+
 # make dirs
 unless ( -e $dir_lav ) {
     mkdir $dir_lav, 0777
@@ -80,9 +86,6 @@ for ( $dir_net, $dir_axtnet ) {
 # fa section
 #----------------------------------------------------------#
 {
-    my $start_time = time;
-    print "\n", "=" x 30, "\n";
-    print "Processing...\n";
 
     # faSize - print total base count in fa files.
     # usage:
@@ -91,13 +94,13 @@ for ( $dir_net, $dir_axtnet ) {
         = "$kent_bin/faSize -detailed"
         . " $dir_target/*.fa"
         . " > $dir_target/chr.sizes";
-    exec_cmd($cmd);
+    exec_cmd($cmd) if !-e "$dir_target/chr.sizes";
 
     $cmd
         = "$kent_bin/faSize -detailed"
         . " $dir_query/*.fa"
         . " > $dir_query/chr.sizes";
-    exec_cmd($cmd);
+    exec_cmd($cmd) if !-e "$dir_query/chr.sizes";
 
     # use combined .2bit file instead of dir of nibs
 
@@ -108,14 +111,12 @@ for ( $dir_net, $dir_axtnet ) {
         = "$kent_bin/faToTwoBit"
         . " $dir_target/*.fa"
         . " $dir_target/chr.2bit";
-    exec_cmd($cmd);
+    exec_cmd($cmd) if !-e "$dir_target/chr.2bit";
 
     $cmd = "$kent_bin/faToTwoBit" . " $dir_query/*.fa" . " $dir_query/chr.2bit";
-    exec_cmd($cmd);
+    exec_cmd($cmd) if !-e "$dir_query/chr.2bit";
 
     print "\n";
-    print "Runtime ", duration( time - $start_time ), ".\n";
-    print "=" x 30, "\n";
 }
 
 #----------------------------------------------------------#
@@ -145,11 +146,6 @@ for ( $dir_net, $dir_axtnet ) {
     };
 
     my @jobs = sort @files;
-
-    my $start_time = time;
-    print "\n", "=" x 30, "\n";
-    print "Processing...\n";
-
     my $run = AlignDB::Run->new(
         parallel => $parallel,
         jobs     => \@jobs,
@@ -158,8 +154,6 @@ for ( $dir_net, $dir_axtnet ) {
     $run->run;
 
     print "\n";
-    print "Runtime ", duration( time - $start_time ), ".\n";
-    print "=" x 30, "\n";
 }
 
 #----------------------------------------------------------#
@@ -210,10 +204,6 @@ for ( $dir_net, $dir_axtnet ) {
 
     my @jobs = sort @files;
 
-    my $start_time = time;
-    print "\n", "=" x 30, "\n";
-    print "Processing...\n";
-
     my $run = AlignDB::Run->new(
         parallel => $parallel,
         jobs     => \@jobs,
@@ -222,17 +212,12 @@ for ( $dir_net, $dir_axtnet ) {
     $run->run;
 
     print "\n";
-    print "Runtime ", duration( time - $start_time ), ".\n";
-    print "=" x 30, "\n";
 }
 
 #----------------------------------------------------------#
 # chain-net section
 #----------------------------------------------------------#
 {
-    my $start_time = time;
-    print "\n", "=" x 30, "\n";
-    print "Processing...\n";
 
     # chainMergeSort - Combine sorted files into larger sorted file
     # usage:
@@ -308,8 +293,6 @@ for ( $dir_net, $dir_axtnet ) {
     exec_cmd($cmd);
 
     print "\n";
-    print "Runtime ", duration( time - $start_time ), ".\n";
-    print "=" x 30, "\n";
 }
 
 #----------------------------------------------------------#
@@ -355,10 +338,6 @@ for ( $dir_net, $dir_axtnet ) {
 
     my @jobs = sort @files;
 
-    my $start_time = time;
-    print "\n", "=" x 30, "\n";
-    print "Processing...\n";
-
     my $run = AlignDB::Run->new(
         parallel => $parallel,
         jobs     => \@jobs,
@@ -366,10 +345,11 @@ for ( $dir_net, $dir_axtnet ) {
     );
     $run->run;
 
-    print "\n";
-    print "Runtime ", duration( time - $start_time ), ".\n";
-    print "=" x 30, "\n";
 }
+
+print "\n";
+print "Runtime ", duration( time - $start_time ), ".\n";
+print "=" x 30, "\n";
 
 exit;
 

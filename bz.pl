@@ -44,6 +44,9 @@ my $dir_lav = ".";
 # don't convert to axt
 my $noaxt = 0;
 
+# use lastz instead of blastz
+my $lastz = 0;
+
 my %opt = (
     O => undef,
     E => undef,
@@ -87,6 +90,7 @@ GetOptions(
     'Y=s'                 => \$opt{Y},
     'Z=s'                 => \$opt{Z},
     'noaxt'               => \$noaxt,
+    'lastz'               => \$lastz,
 ) or pod2usage(2);
 
 pod2usage(1) if $help;
@@ -187,6 +191,7 @@ printf "\n----%4s .fa files for query----\n",  scalar @query_files;
                 $bz_cmd .= " $key=$value";
             }
         }
+        $bz_cmd .= " --ambiguous=iupac" if $lastz;
         $bz_cmd .= " > $lav_file";
         exec_cmd($bz_cmd);
         print ".lav file generated.\n\n";

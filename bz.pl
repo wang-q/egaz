@@ -403,7 +403,7 @@ __END__
     >perl bz.pl -dt t\S288C\chr01.fa -dq t\RM11_parted -s set01 -dl test -qp
     
     >perl part_seq.pl -in t\S288C -out t\S288C_parted -chunk 500000
-    >perl bz.pl -dt t\S288C_parted -dq t\RM11\rm11.fa -s set01 -dl test -tp -p 4
+    >perl bz.pl -dt t\S288C_parted -dq t\RM11\rm11.fa -s set01 -dl t\S288CvsRM11_df_tp -tp -p 1
 
 =head1 OPTIONS
 

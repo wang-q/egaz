@@ -405,14 +405,16 @@ Prints the manual page and exits.
 
 =head1 DESCRIPTION
 
-Blastz will take the first sequence in target fasta file and all sequences in
-query fasta file.
+-p 8
+Runtime 3 minutes and 24 seconds.
 
-So if there are mutiple query files, the program uses the largest one. And all
-target files in dir_target will be processed.
+-p 4
+Runtime 3 minutes and 28 seconds.
 
-So, if there are combined fasta files and multi fasta files coexisting in the
-target directory, just delete the axt file matched with the combined fasta
-filename.
+-p 2
+Runtime 4 minutes and 28 seconds.
+
+-p 1
+Runtime 8 minutes and 25 seconds.
 
 =cut

@@ -40,6 +40,9 @@ my $tree_file;
 #  names
 my $target_name;
 
+# output dir
+my $out_dir = ".";
+
 # .synNet.maf or .net.maf
 my $syn;
 
@@ -55,6 +58,7 @@ GetOptions(
     'bin|kent_bin=s' => \$kent_bin,
     'multiz_bin=s'   => \$multiz_bin,
     'd|dir=s'        => \@dirs,
+    'out=s'          => \$out_dir,
     'tree=s'         => \$tree_file,
     'target=s'       => \$target_name,
     'syn'            => \$syn,
@@ -70,6 +74,11 @@ pod2usage( -exitstatus => 0, -verbose => 2 ) if $man;
 my $start_time = time;
 print "\n", "=" x 30, "\n";
 print "Processing...\n";
+
+unless ( -e $out_dir ) {
+    mkdir $out_dir, 0777
+        or die "Cannot create directory [$out_dir]: $!";
+}
 
 my $suffix = $syn ? '.synNet.maf' : '.net.maf';
 my @files = File::Find::Rule->file->name("*$suffix")->in(@dirs);
@@ -250,15 +259,16 @@ my $worker = sub {
 
         $maf_step
             = @species_copy
-            ? "chr$chr_name.step$step$suffix"
-            : "chr$chr_name$suffix";
+            ? "$out_dir/chr$chr_name.step$step$suffix"
+            : "$out_dir/chr$chr_name$suffix";
 
         print "Run multiz...\n";
         my $cmd
             = "$multiz_bin/multiz" 
             . " $maf1" 
-            . " $maf2"
-            . " 1 out1 out2"
+            . " $maf2" . " 1 "
+            . " $out_dir/$chr_name.out1"
+            . " $out_dir/$chr_name.out2"
             . " > $maf_step";
         exec_cmd($cmd);
         print ".maf file generated.\n\n";
@@ -278,6 +288,15 @@ my $run = AlignDB::Run->new(
 );
 $run->run;
 
+#----------------------------#
+# Cleanup
+#----------------------------#
+{
+    remove("$out_dir/*out1");
+    remove("$out_dir/*out2");
+    remove("$out_dir/*.step*");
+}
+
 print "\n";
 print "Runtime ", duration( time - $start_time ), ".\n";
 print "=" x 30, "\n";
@@ -294,7 +313,7 @@ sub exec_cmd {
     print $cmd , "\n";
     print "-" x 30, "\n";
 
-    #system $cmd;
+    system $cmd;
 }
 
 #----------------------------#
@@ -361,11 +380,11 @@ __END__
 
 =head1 NAME
 
-    amp.pl - axt-maf-phast pipeline
+    mz.pl - Multiz step by step
 
 =head1 SYNOPSIS
 
-    amp.pl -dt <one target dir or file> -dq <one query dir or file> [options]
+    mz.pl -dt <one target dir or file> -dq <one query dir or file> [options]
       Options:
         -?, --help              brief help message
         --man                   full documentation
@@ -379,6 +398,16 @@ __END__
 
       Output .lav and .axt
         -dl, --dir_lav          where .lav and .axt files storess
+    
+        perl mz.pl  -d ~/data/alignment/arabidopsis19/AthvsLyrata_set01_4/ \
+                    -d ~/data/alignment/arabidopsis19/AthvsBur_0/ \
+                    -d ~/data/alignment/arabidopsis19/AthvsZu_0/ \
+                    -d ~/data/alignment/arabidopsis19/AthvsNo_0/ \
+                    -d ~/data/alignment/arabidopsis19/AthvsLer_0/ \
+                    --tree ~/data/alignment/arabidopsis19/19way.nwk \
+                    --out ~/data/alignment/arabidopsis19/AthvsVI/ \
+                    --parallel 8 \
+                    -syn
 
 =head1 OPTIONS
 

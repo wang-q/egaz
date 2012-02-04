@@ -14,6 +14,7 @@ use Set::Scalar;
 use List::Flatten;
 use List::MoreUtils qw(uniq zip);
 use Time::Duration;
+use Roman;
 use File::Find::Rule;
 use File::Spec;
 use File::Basename;
@@ -41,7 +42,7 @@ my $tree_file;
 my $target_name;
 
 # output dir
-my $out_dir = ".";
+my $out_dir;
 
 # .synNet.maf or .net.maf
 my $syn;
@@ -74,11 +75,6 @@ pod2usage( -exitstatus => 0, -verbose => 2 ) if $man;
 my $start_time = time;
 print "\n", "=" x 30, "\n";
 print "Processing...\n";
-
-unless ( -e $out_dir ) {
-    mkdir $out_dir, 0777
-        or die "Cannot create directory [$out_dir]: $!";
-}
 
 my $suffix = $syn ? '.synNet.maf' : '.net.maf';
 my @files = File::Find::Rule->file->name("*$suffix")->in(@dirs);
@@ -155,6 +151,14 @@ my $number_of_chr;
     else {
         die "Please check maf files. It seemed there are redundances.\n";
     }
+}
+
+unless ($out_dir) {
+    $out_dir = ucfirst $target_name . "vs" . uc roman(scalar @species);
+}
+unless ( -e $out_dir ) {
+    mkdir $out_dir, 0777
+        or die "Cannot create directory [$out_dir]: $!";
 }
 
 #----------------------------#
@@ -399,13 +403,12 @@ __END__
       Output .lav and .axt
         -dl, --dir_lav          where .lav and .axt files storess
     
-        perl mz.pl  -d ~/data/alignment/arabidopsis19/AthvsLyrata_set01_4/ \
+        perl mz.pl  -d ~/data/alignment/arabidopsis19/AthvsLyrata/ \
                     -d ~/data/alignment/arabidopsis19/AthvsBur_0/ \
                     -d ~/data/alignment/arabidopsis19/AthvsZu_0/ \
                     -d ~/data/alignment/arabidopsis19/AthvsNo_0/ \
                     -d ~/data/alignment/arabidopsis19/AthvsLer_0/ \
                     --tree ~/data/alignment/arabidopsis19/19way.nwk \
-                    --out ~/data/alignment/arabidopsis19/AthvsVI/ \
                     --parallel 8 \
                     -syn
 

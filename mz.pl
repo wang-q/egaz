@@ -154,7 +154,7 @@ my $number_of_chr;
 }
 
 unless ($out_dir) {
-    $out_dir = ucfirst $target_name . "vs" . uc roman(scalar @species);
+    $out_dir = ucfirst $target_name . "vs" . uc roman( scalar @species );
 }
 unless ( -e $out_dir ) {
     mkdir $out_dir, 0777
@@ -266,6 +266,9 @@ my $worker = sub {
             ? "$out_dir/chr$chr_name.step$step$suffix"
             : "$out_dir/chr$chr_name$suffix";
 
+        # here we set out1 and out2 to discard unused synteny
+        # Omit out1 and out2, unused synteny will be printed to stdout and
+        # reused by following multiz processes
         print "Run multiz...\n";
         my $cmd
             = "$multiz_bin/multiz" 
@@ -296,6 +299,7 @@ $run->run;
 # Cleanup
 #----------------------------#
 {
+    print "Clean temp files.\n";
     remove("$out_dir/*out1");
     remove("$out_dir/*out2");
     remove("$out_dir/*.step*");

@@ -125,8 +125,11 @@ my $number_of_chr;
 
     # check other species occurrence number
     my @occurrence = uniq( @seen{@species} );
-    die "Species occurrence number inconsistency [@occurrence]\n"
-        if @occurrence > 1;
+    if ( @occurrence > 1 ) {
+        print Dump \%seen;
+        die "Species occurrence number inconsistency [@occurrence]\n";
+    }
+
     $number_of_chr = $occurrence[0];
     print "I guess there are $number_of_chr chromosomes.\n";
 

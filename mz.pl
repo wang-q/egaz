@@ -291,7 +291,7 @@ my $worker = sub {
     print "Clean temp files.\n";
     remove("$out_dir/$chr_name.out1");
     remove("$out_dir/$chr_name.out2");
-    remove("$out_dir/$chr_name.step*");
+    remove("$out_dir/chr$chr_name.step*");
     return;
 };
 

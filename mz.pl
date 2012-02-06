@@ -288,6 +288,10 @@ my $worker = sub {
         $step++;
     }
 
+    print "Clean temp files.\n";
+    remove("$out_dir/$chr_name.out1");
+    remove("$out_dir/$chr_name.out2");
+    remove("$out_dir/$chr_name.step*");
     return;
 };
 
@@ -297,16 +301,6 @@ my $run = AlignDB::Run->new(
     code     => $worker,
 );
 $run->run;
-
-#----------------------------#
-# Cleanup
-#----------------------------#
-{
-    print "Clean temp files.\n";
-    remove("$out_dir/*out1");
-    remove("$out_dir/*out2");
-    remove("$out_dir/*.step*");
-}
 
 print "\n";
 print "Runtime ", duration( time - $start_time ), ".\n";

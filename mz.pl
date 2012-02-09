@@ -21,6 +21,7 @@ use File::Basename;
 use File::Remove qw(remove);
 use Path::Class;
 use String::Compare;
+use Number::Format qw(format_bytes);
 
 use FindBin;
 
@@ -47,6 +48,9 @@ my $out_dir;
 # .synNet.maf or .net.maf
 my $syn;
 
+# don't drop unused syntenies
+my $all;
+
 # run in parallel mode
 my $parallel = 1;
 
@@ -63,6 +67,7 @@ GetOptions(
     'tree=s'         => \$tree_file,
     'target=s'       => \$target_name,
     'syn'            => \$syn,
+    'all'            => \$all,
     'p|parallel=i'   => \$parallel,
 ) or pod2usage(2);
 
@@ -249,6 +254,7 @@ my $worker = sub {
     my ( $species1, $species2 );
     my $maf_step;
     my $step = 1;
+    my $str  = '';
     while (@species_copy) {
         my ( $maf1, $maf2 );
 
@@ -264,6 +270,9 @@ my $worker = sub {
             $maf2     = $file_of->{$species2}{$chr_name};
         }
 
+        my $out1 = "$out_dir/$chr_name.out1";
+        my $out2 = "$out_dir/$chr_name.out2";
+
         $maf_step
             = @species_copy
             ? "$out_dir/chr$chr_name.step$step$suffix"
@@ -276,14 +285,23 @@ my $worker = sub {
         my $cmd
             = "$multiz_bin/multiz" 
             . " $maf1" 
-            . " $maf2" . " 1 "
-            . " $out_dir/$chr_name.out1"
-            . " $out_dir/$chr_name.out2"
+            . " $maf2" . " 1 " 
+            . " $out1"
+            . " $out2"
             . " > $maf_step";
         exec_cmd($cmd);
         print ".maf file generated.\n\n";
 
-        $species1 = "Occupied";
+        $str .= "chr$chr_name.step$step,";
+        $str .= "$species1,$species2,";
+        for my $file ( $maf1, $maf2, $out1, $out2, $maf_step ) {
+            $str .= format_bytes( -s $file, base => 1000 );
+            $str .= ",";
+        }
+        $str .= format_bytes( ( -s $maf_step ) / ( $step + 2 ), base => 1000 );
+        $str .= "\n";
+
+        $species1 = "step$step";
         $species2 = undef;
         $step++;
     }
@@ -292,6 +310,12 @@ my $worker = sub {
     remove("$out_dir/$chr_name.out1");
     remove("$out_dir/$chr_name.out2");
     remove("$out_dir/chr$chr_name.step*");
+
+    print $str;
+    open my $out_fh, ">", "$out_dir/chr$chr_name.temp.csv";
+    print {$out_fh} $str;
+    close $out_fh;
+
     return;
 };
 
@@ -301,6 +325,21 @@ my $run = AlignDB::Run->new(
     code     => $worker,
 );
 $run->run;
+
+{    # summary
+    my $cmd = "echo -e 'step,spe1,spe2,maf1,maf2,out1,out2,size,per_size'"
+        . " > $out_dir/steps.csv";
+    exec_cmd($cmd);
+
+    $cmd
+        = "find $out_dir -type f -name '*.temp.csv'"
+        . " | sort -n"
+        . " | xargs cat >> $out_dir/steps.csv";
+    exec_cmd($cmd);
+
+    $cmd = "find $out_dir -type f -name '*.temp.csv'" . " | xargs rm";
+    exec_cmd($cmd);
+}
 
 print "\n";
 print "Runtime ", duration( time - $start_time ), ".\n";

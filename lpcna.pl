@@ -12,6 +12,7 @@ use AlignDB::Util qw(:all);
 use Time::Duration;
 use File::Find::Rule;
 use File::Basename;
+use File::Remove qw(remove);
 use Path::Class;
 use String::Compare;
 
@@ -146,7 +147,7 @@ for ( $dir_net, $dir_axtnet ) {
     };
 
     my @jobs = sort @files;
-    my $run = AlignDB::Run->new(
+    my $run  = AlignDB::Run->new(
         parallel => $parallel,
         jobs     => \@jobs,
         code     => $worker,
@@ -345,6 +346,45 @@ for ( $dir_net, $dir_axtnet ) {
     );
     $run->run;
 
+}
+
+#----------------------------------------------------------#
+# clean section
+#----------------------------------------------------------#
+{
+    chdir $dir_lav;
+    my $cmd;
+
+    $cmd = "tar -czvf lav.tar.gz [*.lav --remove-files";
+    exec_cmd($cmd);
+
+    remove( \1, "$dir_lav/net" );
+    remove("[*.psl");
+    remove("[*.chain");
+
+    $cmd = "gzip *.chain";
+    exec_cmd($cmd);
+
+    my @files = File::Find::Rule->file->name('*.axt')->in("$dir_lav/axtNet");
+    printf "\n----%4s .axt files to be converted ----\n", scalar @files;
+
+    my $worker = sub {
+        my $job = shift;
+
+        my $file = $job;
+        my $cmd  = "gzip $file";
+        exec_cmd($cmd);
+
+        return;
+    };
+
+    my @jobs = sort @files;
+    my $run  = AlignDB::Run->new(
+        parallel => $parallel,
+        jobs     => \@jobs,
+        code     => $worker,
+    );
+    $run->run;
 }
 
 print "\n";

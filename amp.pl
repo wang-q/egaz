@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use autodie;
 
 use Getopt::Long;
 use Pod::Usage;
@@ -30,6 +31,9 @@ my $phast_bin = "~/share/phast/bin";
 my ( $dir_target, $dir_query );
 my $dir_lav = ".";
 
+# .synNet.maf or .net.maf
+my $syn;
+
 # run in parallel mode
 my $parallel = 1;
 
@@ -44,6 +48,7 @@ GetOptions(
     'dt|dir_target=s'   => \$dir_target,
     'dq|dir_query=s'    => \$dir_query,
     'dl|dir_lav=s'      => \$dir_lav,
+    'syn'               => \$syn,
     'p|parallel=i'      => \$parallel,
 ) or pod2usage(2);
 
@@ -57,32 +62,23 @@ my $start_time = time;
 print "\n", "=" x 30, "\n";
 print "Processing...\n";
 
-my $dir_net    = "$dir_lav/net";
-my $dir_axtnet = "$dir_lav/axtNet";
-for ( $dir_net, $dir_axtnet ) {
-    unless ( -e $_ ) {
-        die "Directory [$_] doesn't exist, you should run lpcna.pl first.\n";
-    }
-}
-
 my $dir_mafnet    = "$dir_lav/mafNet";
 my $dir_mafsynnet = "$dir_lav/mafSynNet";
 my $dir_synnet    = "$dir_lav/synNet";
 my $dir_chain     = "$dir_lav/chain";
 for ( $dir_mafnet, $dir_mafsynnet, $dir_synnet, $dir_chain ) {
-    unless ( -e $_ ) {
-        mkdir $_, 0777
-            or die "Cannot create directory [$_]: $!";
-    }
+    mkdir $_, 0777 unless -e $_;
 }
 
 my $t_prefix = basename($dir_target);
 my $q_prefix = basename($dir_query);
 
-#----------------------------------------------------------#
-# axtToMaf section
-#----------------------------------------------------------#
-{
+if ( !$syn ) {
+
+    #----------------------------#
+    # axtToMaf section
+    #----------------------------#
+
     my @files = File::Find::Rule->file->name('*.axt')->in($dir_lav);
     @files = File::Find::Rule->file->name('*.axt.gz')->in($dir_lav)
         if scalar @files == 0;
@@ -136,11 +132,12 @@ my $q_prefix = basename($dir_query);
 
     print "\n";
 }
+else {
 
-#----------------------------------------------------------#
-# synNetMaf section
-#----------------------------------------------------------#
-{
+    #----------------------------#
+    # synNetMaf section
+    #----------------------------#
+
     {
         my @files = File::Find::Rule->file->name('noClass.net')->in($dir_lav);
         @files = File::Find::Rule->file->name('noClass.net.gz')->in($dir_lav)
@@ -183,19 +180,19 @@ my $q_prefix = basename($dir_query);
 
     my @files = File::Find::Rule->file->name('*.net')->in($dir_synnet);
     printf "\n----%4s .net files to be converted ----\n", scalar @files;
-    
+
     my $worker = sub {
         my $job = shift;
         my $opt = shift;
 
-        my $file = $job;
-        my $base = basename( $file, ".net" );
+        my $file   = $job;
+        my $base   = basename( $file, ".net" );
         my $output = File::Spec->catfile( $dir_mafsynnet, "$base.synNet.maf" );
         my $chain_file = File::Spec->catfile( $dir_chain, "$base.chain" );
-        
+
         print "Run netToAxt axtSort axtToMaf...\n";
         my $cmd
-            = "$kent_bin/netToAxt"
+            = "$kent_bin/netToAxt" 
             . " $file"
             . " $chain_file"
             . " $dir_target/chr.2bit"
@@ -229,7 +226,6 @@ my $q_prefix = basename($dir_query);
 {
     remove( \1, $dir_synnet, $dir_chain );
 }
-
 
 print "\n";
 print "Runtime ", duration( time - $start_time ), ".\n";

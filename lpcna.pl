@@ -356,7 +356,7 @@ for ( $dir_net, $dir_axtnet ) {
     my $cmd;
 
     $cmd = "tar -czvf lav.tar.gz [*.lav --remove-files";
-    exec_cmd($cmd);
+    exec_cmd($cmd) if !-e "$dir_lav/lav.tar.gz";
 
     remove( \1, "$dir_lav/net" );
     remove("[*.psl");

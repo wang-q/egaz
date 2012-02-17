@@ -290,7 +290,7 @@ my $worker = sub {
             . " $out2"
             . " > $maf_step";
         exec_cmd($cmd);
-        print ".maf file generated.\n\n";
+        print "Step [$step] .maf file generated.\n\n";
 
         $str .= "chr$chr_name.step$step,";
         $str .= "$species1,$species2,";

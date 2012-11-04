@@ -154,6 +154,10 @@ exit;
 
     perl part_seq.pl -in t\S288C -out t\S288C_parted -chunk 500000
     perl part_seq.pl -in t\RM11 -out t\parted -chunk 500000
+    
+    
+    perl part_seq.pl -in d:\data\alignment\mouse17\C57BL_6N_Mouse_Genome.fa\ -out d:\data\alignment\mouse17\C57BL_6N_parted -chunk 10010000 -overlap 10000
+    perl part_seq.pl -in d:\data\alignment\mouse17\A_J_Mouse_Genome.fa\ -out d:\data\alignment\mouse17\A_J_parted -chunk 10000000 -overlap 0
 
 =head1 OPTIONS
 

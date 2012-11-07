@@ -66,7 +66,7 @@ my $stopwatch = AlignDB::Stopwatch->new;
 $stopwatch->start_message("Write .axt files from $db...");
 
 my @jobs;
-{
+{    # create alignDB object for this scope
     my $obj = AlignDB->new(
         mysql  => "$db:$server",
         user   => $username,
@@ -128,7 +128,7 @@ my $worker = sub {
     # for each align
     my @align_ids = @{ $obj->get_align_ids_of_chr($chr_id) };
     for my $align_id (@align_ids) {
-        print "Processing align_id $align_id\n";
+        $obj->process_message($align_id);
 
         # target
         my $target_info      = $obj->get_target_info($align_id);
@@ -184,7 +184,7 @@ my $worker = sub {
             next if /^\d+$/;
             my ( $seg_start, $seg_end ) = split "-";
             my $seg_length = $seg_end - $seg_start + 1;
-            next unless ( $seg_length > $length_threshold );
+            next if $seg_length < $length_threshold;
 
             # align coordinates to target & query chromosome coordinates
             my $target_seg_start

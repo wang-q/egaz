@@ -9,6 +9,7 @@ use YAML::Syck qw(Dump Load DumpFile LoadFile);
 
 use File::Find::Rule;
 use File::Spec;
+use File::Basename;
 
 use AlignDB::IntSpan;
 use AlignDB::Run;
@@ -75,16 +76,14 @@ printf "\n----Total YAML Files: %4s----\n\n", scalar @yaml_files;
 
 for my $yaml_file ( sort @yaml_files ) {
     print "Loading $yaml_file\n";
-    my $base;
-    ( undef, undef, $base ) = File::Spec->splitpath($yaml_file);
-    $base =~ s/\.(yaml|yml)//;
+    my ( $base, $dir ) = fileparse( $yaml_file, ".yaml", ".yml" );
 
-    if ( $yaml_file =~ /(chr\w+)/ ) {
+    if ( $base =~ /^(chr\w+)/ ) {
         my $chr_name  = $1;
         my $runlist   = LoadFile($yaml_file);
         my $slice_set = AlignDB::IntSpan->new($runlist);
-        my $outfile   = File::Spec->catfile( $base, "$base.axt" );
-        mkdir $base if !-d $base;
+        my $outfile   = File::Spec->catfile( $dir, "$base.axt" );
+        print "Write $outfile\n";
         write_slice( $chr_name, $slice_set, $outfile );
     }
     else {
@@ -93,8 +92,7 @@ for my $yaml_file ( sort @yaml_files ) {
         my $worker = sub {
             my $chr_name  = shift;
             my $slice_set = AlignDB::IntSpan->new( $slice_set_of->{$chr_name} );
-            my $outfile   = File::Spec->catfile( $base, "$chr_name.axt" );
-            mkdir $base if !-d $base;
+            my $outfile   = File::Spec->catfile( $dir, "$chr_name.axt" );
             write_slice( $chr_name, $slice_set, $outfile );
         };
 

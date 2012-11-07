@@ -6,7 +6,7 @@ use autodie;
 use Getopt::Long;
 use Pod::Usage;
 use Config::Tiny;
-use YAML qw(Dump Load DumpFile LoadFile);
+use YAML::Syck qw(Dump Load DumpFile LoadFile);
 
 use File::Spec;
 
@@ -158,6 +158,7 @@ my $worker = sub {
         my $slice       = $ensembl->slice;
         my $ftr_chr_set = $slice->{"_$feature\_set"};
 
+        next unless $ftr_chr_set;
         for my $set ( $ftr_chr_set->sets ) {
             next if $set->size < $length_threshold;
             $chr_set->add($set);

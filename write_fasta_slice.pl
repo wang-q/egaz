@@ -9,6 +9,7 @@ use YAML::Syck qw(Dump Load DumpFile LoadFile);
 
 use File::Find::Rule;
 use File::Spec;
+use File::Basename;
 
 use AlignDB::IntSpan;
 use AlignDB::Run;
@@ -16,7 +17,7 @@ use AlignDB::Stopwatch;
 
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use AlignDB;
+use AlignDB::Multi;
 use AlignDB::Position;
 
 #----------------------------------------------------------#
@@ -60,7 +61,7 @@ pod2usage( -exitstatus => 0, -verbose => 2 ) if $man;
 # Init objects
 #----------------------------------------------------------#
 my $stopwatch = AlignDB::Stopwatch->new;
-$stopwatch->start_message("Write .fasta files from $db...");
+$stopwatch->start_message("Write .fas files from $db...");
 
 #----------------------------------------------------------#
 # Write .axt files from alignDB
@@ -71,17 +72,15 @@ printf "\n----Total YAML Files: %4s----\n\n", scalar @yaml_files;
 
 for my $yaml_file ( sort @yaml_files ) {
     print "Loading $yaml_file\n";
-    my $base;
-    ( undef, undef, $base ) = File::Spec->splitpath($yaml_file);
-    $base =~ s/\.(yaml|yml)//;
+    my ( $base, $dir ) = fileparse( $yaml_file, ".yaml", ".yml" );
 
-    if ( $yaml_file =~ /(chr\w+)/ ) {
+    if ( $base =~ /^(chr\w+)/ ) {
         my $chr_name  = $1;
         my $runlist   = LoadFile($yaml_file);
         my $slice_set = AlignDB::IntSpan->new($runlist);
-        my $outdir    = File::Spec->rel2abs($base);
-        mkdir $base if !-d $base;
-        write_slice( $chr_name, $slice_set, $outdir );
+        my $outfile   = File::Spec->catfile( $dir, "$base.fas" );
+        print "Write $outfile\n";
+        write_slice( $chr_name, $slice_set, $outfile );
     }
     else {
         my $slice_set_of = LoadFile($yaml_file);
@@ -89,9 +88,8 @@ for my $yaml_file ( sort @yaml_files ) {
         my $worker = sub {
             my $chr_name  = shift;
             my $slice_set = AlignDB::IntSpan->new( $slice_set_of->{$chr_name} );
-            my $outdir    = File::Spec->rel2abs($base);
-            mkdir $base if !-d $base;
-            write_slice( $chr_name, $slice_set, $outdir );
+            my $outfile   = File::Spec->catfile( $dir, "$chr_name.fas" );
+            write_slice( $chr_name, $slice_set, $outfile );
         };
 
         my $run = AlignDB::Run->new(
@@ -106,9 +104,9 @@ for my $yaml_file ( sort @yaml_files ) {
 sub write_slice {
     my $chr_name  = shift;
     my $slice_set = shift;
-    my $outdir    = shift;
+    my $outfile   = shift;
 
-    my $obj = AlignDB->new(
+    my $obj = AlignDB::Multi->new(
         mysql  => "$db:$server",
         user   => $username,
         passwd => $password,
@@ -120,26 +118,8 @@ sub write_slice {
     # position finder
     my $pos_obj = AlignDB::Position->new( dbh => $dbh );
 
-    my $taxon_id;
-    {
-        my $sth = $dbh->prepare(
-            q{
-            SELECT 
-                    c.taxon_id
-            FROM
-                sequence s
-                INNER JOIN target t
-                    ON s.seq_id = t.seq_id
-                INNER JOIN chromosome c
-                    ON s.chr_id = c.chr_id
-            }
-        );
-        $sth->execute;
-        ($taxon_id) = $sth->fetchrow_array;
-    }
-
     print "Write slice from $chr_name\n";
-    print "Output dir is $outdir\n";
+    print "Output file is $outfile\n";
 
     # alignment
     my @align_ids = @{ $obj->get_align_ids_of_chr_name($chr_name) };
@@ -184,23 +164,18 @@ sub write_slice {
                 = $pos_obj->at_target_chr( $align_id, $seg_start );
             my $target_seg_end = $pos_obj->at_target_chr( $align_id, $seg_end );
 
-            my $outfile
-                = "$outdir/"
-                . "id$taxon_id" . "_"
-                . $target_chr_name . "_"
-                . $target_seg_start . "_"
-                . $target_seg_end . ".fas";
-
-            # append axt file
+            # append fas file
+            # S288C.chrI(+):27520-29557|species=S288C
             {
                 print "Write fasta files: "
                     . "$target_chr_name:$target_seg_start-$target_seg_end"
                     . "\n";
-                open my $outfh, '>', $outfile;
+                open my $outfh, '>>', $outfile;
                 print {$outfh} ">ref\n";
                 print {$outfh} substr( $ref_seq, $seg_start - 1, $seg_length ),
                     "\n";
-                print {$outfh} ">target\n";
+                print {$outfh}
+                    ">target.$target_chr_name(+):$target_chr_start-$target_chr_end|species=target\n";
                 print {$outfh}
                     substr( $target_seq, $seg_start - 1, $seg_length ), "\n";
 

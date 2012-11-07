@@ -6,7 +6,7 @@ use autodie;
 use Getopt::Long;
 use Pod::Usage;
 use Config::Tiny;
-use YAML qw(Dump Load DumpFile LoadFile);
+use YAML::Syck qw(Dump Load DumpFile LoadFile);
 
 use File::Spec;
 use File::Basename;

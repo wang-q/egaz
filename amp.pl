@@ -71,6 +71,9 @@ for ( $dir_synnet, $dir_chain ) {
 my $t_prefix = basename($dir_target);
 my $q_prefix = basename($dir_query);
 
+#----------------------------------------------------------#
+# maf section
+#----------------------------------------------------------#
 if ( !$syn ) {
     my $dir_mafnet = "$dir_lav/mafNet";
     mkdir $_, 0777 unless -e $dir_mafnet;
@@ -225,8 +228,33 @@ else {
     print "\n";
 }
 
+#----------------------------------------------------------#
+# clean section
+#----------------------------------------------------------#
 {
+    chdir $dir_lav;
     remove( \1, $dir_synnet, $dir_chain );
+
+    my @files = File::Find::Rule->file->name('*.maf')->in("$dir_lav");
+    printf "\n----%4s .maf files to be converted ----\n", scalar @files;
+
+    my $worker = sub {
+        my $job = shift;
+
+        my $file = $job;
+        my $cmd  = "gzip $file";
+        exec_cmd($cmd);
+
+        return;
+    };
+
+    my @jobs = sort @files;
+    my $run  = AlignDB::Run->new(
+        parallel => $parallel,
+        jobs     => \@jobs,
+        code     => $worker,
+    );
+    $run->run;
 }
 
 print "\n";

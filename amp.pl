@@ -62,11 +62,9 @@ my $start_time = time;
 print "\n", "=" x 30, "\n";
 print "Processing...\n";
 
-my $dir_mafnet    = "$dir_lav/mafNet";
-my $dir_mafsynnet = "$dir_lav/mafSynNet";
-my $dir_synnet    = "$dir_lav/synNet";
-my $dir_chain     = "$dir_lav/chain";
-for ( $dir_mafnet, $dir_mafsynnet, $dir_synnet, $dir_chain ) {
+my $dir_synnet = "$dir_lav/synNet";
+my $dir_chain  = "$dir_lav/chain";
+for ( $dir_synnet, $dir_chain ) {
     mkdir $_, 0777 unless -e $_;
 }
 
@@ -74,6 +72,8 @@ my $t_prefix = basename($dir_target);
 my $q_prefix = basename($dir_query);
 
 if ( !$syn ) {
+    my $dir_mafnet = "$dir_lav/mafNet";
+    mkdir $_, 0777 unless -e $dir_mafnet;
 
     #----------------------------#
     # axtToMaf section
@@ -133,6 +133,8 @@ if ( !$syn ) {
     print "\n";
 }
 else {
+    my $dir_mafsynnet = "$dir_lav/mafSynNet";
+    mkdir $_, 0777 unless -e $dir_mafsynnet;
 
     #----------------------------#
     # synNetMaf section

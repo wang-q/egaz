@@ -76,7 +76,7 @@ my $q_prefix = basename($dir_query);
 #----------------------------------------------------------#
 if ( !$syn ) {
     my $dir_mafnet = "$dir_lav/mafNet";
-    mkdir $_, 0777 unless -e $dir_mafnet;
+    mkdir $dir_mafnet, 0777 unless -e $dir_mafnet;
 
     #----------------------------#
     # axtToMaf section
@@ -137,7 +137,7 @@ if ( !$syn ) {
 }
 else {
     my $dir_mafsynnet = "$dir_lav/mafSynNet";
-    mkdir $_, 0777 unless -e $dir_mafsynnet;
+    mkdir $dir_mafsynnet, 0777 unless -e $dir_mafsynnet;
 
     #----------------------------#
     # synNetMaf section

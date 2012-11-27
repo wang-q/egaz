@@ -82,8 +82,48 @@ print "\n", "=" x 30, "\n";
 print "Processing...\n";
 
 my $suffix = $syn ? '.synNet.maf' : '.net.maf';
+my $gzip;
 my @files = File::Find::Rule->file->name("*$suffix")->in(@dirs);
 printf "\n----%4s $suffix files ----\n", scalar @files;
+if ( scalar @files == 0 ) {
+    @files = sort File::Find::Rule->file->name("*$suffix.gz")->in(@dirs);
+    printf "\n----Total $suffix.gz Files: %4s----\n\n", scalar @files;
+    $gzip++;
+}
+
+if ( scalar @files == 0 ) {
+    print "Can't find maf files\n";
+    exit;
+}
+
+#----------------------------#
+# decompress
+#----------------------------#
+if ($gzip) {
+    print "maf files is gzipped, multiz can't handle them.\n";
+    print "Decompress...\n";
+    
+    my $worker = sub {
+        my $job = shift;
+
+        my $file = $job;
+        my $cmd  = "gzip -d $file";
+        exec_cmd($cmd);
+
+        return;
+    };
+
+    my @jobs = sort @files;
+    my $run  = AlignDB::Run->new(
+        parallel => $parallel,
+        jobs     => \@jobs,
+        code     => $worker,
+    );
+    $run->run;
+    
+    # refind newly decompressed maf files
+    @files = File::Find::Rule->file->name("*$suffix")->in(@dirs);
+}
 
 #----------------------------#
 # Gather species list from maf and tree
@@ -310,6 +350,9 @@ my $worker = sub {
     remove("$out_dir/$chr_name.out1");
     remove("$out_dir/$chr_name.out2");
     remove("$out_dir/chr$chr_name.step*");
+    
+    my $cmd = "gzip " . "$out_dir/chr$chr_name$suffix";
+    exec_cmd($cmd);
 
     print $str;
     open my $out_fh, ">", "$out_dir/chr$chr_name.temp.csv";
@@ -339,6 +382,32 @@ $run->run;
 
     $cmd = "find $out_dir -type f -name '*.temp.csv'" . " | xargs rm";
     exec_cmd($cmd);
+}
+
+#----------------------------#
+# compress
+#----------------------------#
+if ($gzip) {
+    print "Restore compressed state of maf files.\n";
+    print "Compress...\n";
+    
+    my $worker = sub {
+        my $job = shift;
+
+        my $file = $job;
+        my $cmd  = "gzip $file";
+        exec_cmd($cmd);
+
+        return;
+    };
+
+    my @jobs = sort @files;
+    my $run  = AlignDB::Run->new(
+        parallel => $parallel,
+        jobs     => \@jobs,
+        code     => $worker,
+    );
+    $run->run;
 }
 
 print "\n";

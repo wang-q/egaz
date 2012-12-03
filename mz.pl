@@ -102,7 +102,7 @@ if ( scalar @files == 0 ) {
 if ($gzip) {
     print "maf files is gzipped, multiz can't handle them.\n";
     print "Decompress...\n";
-    
+
     my $worker = sub {
         my $job = shift;
 
@@ -120,7 +120,7 @@ if ($gzip) {
         code     => $worker,
     );
     $run->run;
-    
+
     # refind newly decompressed maf files
     @files = File::Find::Rule->file->name("*$suffix")->in(@dirs);
 }
@@ -128,8 +128,8 @@ if ($gzip) {
 #----------------------------#
 # Gather species list from maf and tree
 #----------------------------#
-my @species;
-my %species_of;
+my @species;   # species list gathered from maf files; and then shift target out
+my %species_of;    # file to species
 my $number_of_chr;
 {
     print "Get species list\n";
@@ -234,16 +234,10 @@ my @chr_names;
 
         my @chrs = map { basename $_ , $suffix }
             @species_files;    # strip dir and suffix
-        while (1) {
-            my $lcss = lcss(@chrs);
-            last unless $lcss;
-            print "LCSS [$lcss]\n";
-            my $rx = quotemeta $lcss;
-            $chrs[$_] =~ s/$rx// for 0 .. $#chrs;
-        }
         $file_of->{$name} = { zip( @chrs, @species_files ) };
         push @chr_string, join " ", sort @chrs;
     }
+    print Dump { chr_string => \@chr_string };
 
     if ( scalar uniq(@chr_string) == 1 ) {
         @chr_names = split / /, $chr_string[0];
@@ -269,7 +263,6 @@ my @chr_names;
 
 my $worker = sub {
     my $job = shift;
-    my $opt = shift;
 
     my $chr_name = $job;
 
@@ -315,8 +308,8 @@ my $worker = sub {
 
         $maf_step
             = @species_copy
-            ? "$out_dir/chr$chr_name.step$step$suffix"
-            : "$out_dir/chr$chr_name$suffix";
+            ? "$out_dir/$chr_name.step$step$suffix"
+            : "$out_dir/$chr_name$suffix";
 
         # here we set out1 and out2 to discard unused synteny
         # Omit out1 and out2, unused synteny will be printed to stdout and
@@ -332,7 +325,7 @@ my $worker = sub {
         exec_cmd($cmd);
         print "Step [$step] .maf file generated.\n\n";
 
-        $str .= "chr$chr_name.step$step,";
+        $str .= "$chr_name.step$step,";
         $str .= "$species1,$species2,";
         for my $file ( $maf1, $maf2, $out1, $out2, $maf_step ) {
             $str .= format_bytes( -s $file, base => 1000 );
@@ -349,13 +342,13 @@ my $worker = sub {
     print "Clean temp files.\n";
     remove("$out_dir/$chr_name.out1");
     remove("$out_dir/$chr_name.out2");
-    remove("$out_dir/chr$chr_name.step*");
-    
-    my $cmd = "gzip " . "$out_dir/chr$chr_name$suffix";
+    remove("$out_dir/$chr_name.step*");
+
+    my $cmd = "gzip " . "$out_dir/$chr_name$suffix";
     exec_cmd($cmd);
 
     print $str;
-    open my $out_fh, ">", "$out_dir/chr$chr_name.temp.csv";
+    open my $out_fh, ">", "$out_dir/$chr_name.temp.csv";
     print {$out_fh} $str;
     close $out_fh;
 
@@ -390,7 +383,7 @@ $run->run;
 if ($gzip) {
     print "Restore compressed state of maf files.\n";
     print "Compress...\n";
-    
+
     my $worker = sub {
         my $job = shift;
 
@@ -466,27 +459,6 @@ sub ladder {
     }
 
     return \@ladder;
-}
-
-# comes from
-# http://stackoverflow.com/questions/499967/how-do-i-determine-the-longest-similar-portion-of-several-strings
-sub lcss {
-    return '' unless @_;
-    return $_[0] if @_ == 1;
-    my $i          = 0;
-    my $first      = shift;
-    my $min_length = length($first);
-    for (@_) {
-        $min_length = length($_) if length($_) < $min_length;
-    }
-INDEX: for my $ch ( split //, $first ) {
-        last INDEX unless $i < $min_length;
-        for my $string (@_) {
-            last INDEX if substr( $string, $i, 1 ) ne $ch;
-        }
-    }
-    continue { $i++ }
-    return substr $first, 0, $i;
 }
 
 __END__

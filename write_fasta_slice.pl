@@ -17,7 +17,7 @@ use AlignDB::Stopwatch;
 
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use AlignDB::Multi;
+use AlignDB;
 use AlignDB::Position;
 
 #----------------------------------------------------------#
@@ -106,7 +106,7 @@ sub write_slice {
     my $slice_set = shift;
     my $outfile   = shift;
 
-    my $obj = AlignDB::Multi->new(
+    my $obj = AlignDB->new(
         mysql  => "$db:$server",
         user   => $username,
         passwd => $password,

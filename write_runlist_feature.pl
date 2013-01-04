@@ -17,7 +17,6 @@ use AlignDB::Stopwatch;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use AlignDB;
-use AlignDB::Multi;
 use AlignDB::Ensembl;
 
 #----------------------------------------------------------#
@@ -41,8 +40,6 @@ my $feature          = $Config->{write}{feature};
 # run in parallel mode
 my $parallel = $Config->{generate}{parallel};
 
-my $multi;
-
 my $man  = 0;
 my $help = 0;
 
@@ -58,7 +55,6 @@ GetOptions(
     'l|lt|length=i' => \$length_threshold,
     'feature=s'     => \$feature,
     'parallel=i'    => \$parallel,
-    'multi'         => \$multi,
 ) or pod2usage(2);
 
 pod2usage(1) if $help;
@@ -68,7 +64,7 @@ pod2usage( -exitstatus => 0, -verbose => 2 ) if $man;
 # Init objects
 #----------------------------------------------------------#
 my $stopwatch = AlignDB::Stopwatch->new;
-$stopwatch->start_message("Write .axt files from $db...");
+$stopwatch->start_message("Write slice files from $db...");
 
 # output dir
 my $dir = "${db}_${feature}";
@@ -102,21 +98,11 @@ my $worker = sub {
     #----------------------------#
     # Init objects
     #----------------------------#
-    my $obj;
-    if ( !$multi ) {
-        $obj = AlignDB->new(
-            mysql  => "$db:$server",
-            user   => $username,
-            passwd => $password,
-        );
-    }
-    else {
-        $obj = AlignDB::Multi->new(
-            mysql  => "$db:$server",
-            user   => $username,
-            passwd => $password,
-        );
-    }
+    my $obj = AlignDB->new(
+        mysql  => "$db:$server",
+        user   => $username,
+        passwd => $password,
+    );
 
     # ensembl handler
     my $ensembl = AlignDB::Ensembl->new(

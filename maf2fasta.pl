@@ -22,7 +22,6 @@ use AlignDB::Run;
 my $in_dir = '.';    # Specify location here
 my $out_dir;         # Specify output dir here
 my $length_threshold = 1000;    # Set the threshold of alignment length
-my $has_outgroup;    # Treate last sequence as outgroup and move it to top
 my $subset;          # get sequences of listed names, seperated by comma
 my $block;           # write galaxy style blocked fasta
 
@@ -40,7 +39,6 @@ GetOptions(
     'i|in_dir=s'   => \$in_dir,
     'o|out_dir=s'  => \$out_dir,
     'length=i'     => \$length_threshold,
-    'has_outgroup' => \$has_outgroup,
     'subset=s'     => \$subset,
     'block'        => \$block,
     'parallel=i'   => \$parallel,
@@ -53,18 +51,10 @@ pod2usage( -exitstatus => 0, -verbose => 2 ) if $man;
 #----------------------------------------------------------#
 # make output dir
 #----------------------------------------------------------#
-if ($subset) {
-    if ($has_outgroup) {
-        print "--subset assigned, --has_outgroup will be ingored\n";
-    }
-    $has_outgroup = 0;
-}
-
 unless ($out_dir) {
     $out_dir = File::Spec->rel2abs($in_dir) . "_fasta";
     $out_dir = $out_dir . "_block" if $block;
     $out_dir = $out_dir . "_$subset" if $subset;
-    $out_dir = $out_dir . "_ref_first" if $has_outgroup;
 }
 if ( !-e $out_dir ) {
     mkdir $out_dir, 0777;
@@ -142,12 +132,6 @@ ALN: while ( my $line = <$in_fh> ) {
                 @names = @subsets;
             }
             my $target = $names[0];
-
-            # if $subset, this will never been executed
-            if ($has_outgroup) {
-                my $outgoup = pop @names;
-                unshift @names, $outgoup;
-            }
 
             # output
             if ($block) {

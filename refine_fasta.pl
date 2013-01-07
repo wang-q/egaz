@@ -32,8 +32,7 @@ my $quick_mode   = undef;     # quick mode
 my $indel_expand = 50;        # in quick mode, expand indel regoin
 my $indel_join   = 50;        # in quick mode, join adjacent indel regions
 
-my $no_trim = 0;              # trim outgroup only sequence
-my $hf_trim = 0;              # trim header and footer indels
+my $outgroup;                 # has outgroup at the end
 my $block;                    # input is galaxy style blocked fasta
 
 # run in parallel mode
@@ -49,8 +48,7 @@ GetOptions(
     'o|out_dir=s' => \$out_dir,
     'msa=s'       => \$aln_prog,
     'quick'       => \$quick_mode,
-    'no_trim'     => \$no_trim,
-    'hf_trim'     => \$hf_trim,
+    'outgroup'    => \$outgroup,
     'expand=i'    => \$indel_expand,
     'join=i'      => \$indel_join,
     'block'       => \$block,
@@ -99,10 +97,8 @@ my $worker = sub {
     else {
         realign_all( $seq_of, $seq_names );
     }
-    if ($hf_trim) {
-        trim_hf( $seq_of, $seq_names );
-    }
-    if ( !$no_trim ) {
+    trim_hf( $seq_of, $seq_names );
+    if ($outgroup) {
         trim_outgroup( $seq_of, $seq_names );
     }
 
@@ -155,10 +151,9 @@ my $worker_block = sub {
             else {
                 realign_all( $seq_of, $names );
             }
-            if ($hf_trim) {
-                trim_hf( $seq_of, $names );
-            }
-            if ( !$no_trim ) {
+
+            trim_hf( $seq_of, $names );
+            if ($outgroup) {
                 trim_outgroup( $seq_of, $names );
             }
 
@@ -302,7 +297,7 @@ sub trim_hf {
             my $first_base = substr( $seq_of->{$_}, 0, 1 );
             push @first_column, $first_base;
         }
-        if ( any { $_ eq '-' } @first_column ) {
+        if ( all { $_ eq '-' } @first_column ) {
             for ( @{$seq_names} ) {
                 my $base = substr( $seq_of->{$_}, 0, 1, '' );
                 if ( $base ne '-' ) {
@@ -322,7 +317,7 @@ sub trim_hf {
             my $last_base = substr( $seq_of->{$_}, -1, 1 );
             push @last_column, $last_base;
         }
-        if ( any { $_ eq '-' } @last_column ) {
+        if ( all { $_ eq '-' } @last_column ) {
             for ( @{$seq_names} ) {
                 my $base = substr( $seq_of->{$_}, -1, 1, '' );
                 if ( $base ne '-' ) {
@@ -350,8 +345,9 @@ sub trim_outgroup {
     my $seq_names = shift;
 
     # don't expand indel set
+    # last is outgroup
     my %indel_sets;
-    for ( 1 .. @$seq_names - 1 ) {
+    for ( 0 .. @{$seq_names} - 2 ) {
         my $name = $seq_names->[$_];
         $indel_sets{$name} = find_indel_set( $seq_of->{$name} );
     }
@@ -372,7 +368,7 @@ sub trim_outgroup {
     for ( reverse $trim_region->spans ) {
         my $seg_start = $_->[0];
         my $seg_end   = $_->[1];
-        for (@$seq_names) {
+        for ( @{$seq_names} ) {
             substr(
                 $seq_of->{$_},
                 $seg_start - 1,

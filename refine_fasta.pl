@@ -104,7 +104,7 @@ my $worker = sub {
         trim_outgroup( $seq_of, $seq_names );
     }
     if ($outgroup) {
-        record_complex_indel( $seq_of, $seq_names );
+        trim_complex_indel( $seq_of, $seq_names );
     }
 
     my $outfile = basename($infile);
@@ -163,7 +163,7 @@ my $worker_block = sub {
                 trim_outgroup( $seq_of, $names );
             }
             if ($outgroup) {
-                record_complex_indel( $seq_of, $names );
+                trim_complex_indel( $seq_of, $names );
             }
 
             my $outfile = basename($infile);
@@ -399,7 +399,7 @@ sub trim_outgroup {
 #   ref GGAGAC
 #   tar GGA--C
 #   que G----C
-sub record_complex_indel {
+sub trim_complex_indel {
     my $seq_of    = shift;
     my $seq_names = shift;
 

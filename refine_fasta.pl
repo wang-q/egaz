@@ -97,9 +97,14 @@ my $worker = sub {
     else {
         realign_all( $seq_of, $seq_names );
     }
+
     trim_hf( $seq_of, $seq_names );
+
     if ($outgroup) {
         trim_outgroup( $seq_of, $seq_names );
+    }
+    if ($outgroup) {
+        record_complex_indel( $seq_of, $seq_names );
     }
 
     my $outfile = basename($infile);
@@ -153,8 +158,12 @@ my $worker_block = sub {
             }
 
             trim_hf( $seq_of, $names );
+
             if ($outgroup) {
                 trim_outgroup( $seq_of, $names );
+            }
+            if ($outgroup) {
+                record_complex_indel( $seq_of, $names );
             }
 
             my $outfile = basename($infile);
@@ -205,7 +214,7 @@ sub realign_all {
     my $realigned_seqs = multi_align( \@seqs, $aln_prog );
 
     for my $i ( 0 .. scalar @{$seq_names} - 1 ) {
-        $seq_of->{ $seq_names->[$i] } = $realigned_seqs->[$i];
+        $seq_of->{ $seq_names->[$i] } = uc $realigned_seqs->[$i];
     }
 
     return;
@@ -267,7 +276,8 @@ sub realign_quick {
         my $realign_segments = multi_align( \@segments, $aln_prog );
 
         for (@$seq_names) {
-            my $seg = shift @$realign_segments;
+            my $seg = shift @{$realign_segments};
+            $seg = uc $seg;
             substr(
                 $seq_of->{$_},
                 $seg_start - 1,
@@ -344,7 +354,7 @@ sub trim_outgroup {
     my $seq_of    = shift;
     my $seq_names = shift;
 
-    # don't expand indel set
+    # don't expand indel set here
     # last is outgroup
     my %indel_sets;
     for ( 0 .. @{$seq_names} - 2 ) {
@@ -365,12 +375,14 @@ sub trim_outgroup {
     }
 
     # trim all segments in trim_region
-    for ( reverse $trim_region->spans ) {
-        my $seg_start = $_->[0];
-        my $seg_end   = $_->[1];
-        for ( @{$seq_names} ) {
+    print " " x 4, "Delete trim region " . $trim_region->runlist . "\n"
+        if $trim_region->is_not_empty;
+    for my $span ( reverse $trim_region->spans ) {
+        my $seg_start = $span->[0];
+        my $seg_end   = $span->[1];
+        for my $name ( @{$seq_names} ) {
             substr(
-                $seq_of->{$_},
+                $seq_of->{$name},
                 $seg_start - 1,
                 $seg_end - $seg_start + 1, ''
             );
@@ -378,6 +390,87 @@ sub trim_outgroup {
     }
 
     return;
+}
+
+#----------------------------#
+# record complex indels and ingroup indels
+#----------------------------#
+# if intersect is subset of union
+#   ref GGAGAC
+#   tar GGA--C
+#   que G----C
+sub record_complex_indel {
+    my $seq_of    = shift;
+    my $seq_names = shift;
+
+    my $ingroup_names = [ @{$seq_names} ];
+    my $outgroup_name = pop @{$ingroup_names};
+
+    my $complex_region = AlignDB::IntSpan->new;
+
+    # don't expand indel set
+    my %indel_sets;
+    for ( @{$seq_names} ) {
+        $indel_sets{$_} = find_indel_set( $seq_of->{$_} );
+    }
+    my $outgroup_indel_set = $indel_sets{$outgroup_name};
+    delete $indel_sets{$outgroup_name};
+
+    # all ingroup intersect sets are complex region after remove uniform ingroup
+    #   indels
+    my $union_set     = AlignDB::IntSpan::union( values %indel_sets );
+    my $intersect_set = AlignDB::IntSpan::intersect( values %indel_sets );
+
+    print " " x 4,
+        "Delete complex trim region " . $intersect_set->runlist . "\n";
+    for ( reverse $intersect_set->spans ) {
+        my $seg_start = $_->[0];
+        my $seg_end   = $_->[1];
+
+        # trim sequence
+        for ( @{$seq_names} ) {
+            substr(
+                $seq_of->{$_},
+                $seg_start - 1,
+                $seg_end - $seg_start + 1, ''
+            );
+        }
+
+        # add to complex_region
+        for my $span ( $union_set->runlists ) {
+            my $sub_union_set = AlignDB::IntSpan->new($span);
+            if ( $sub_union_set->superset("$seg_start-$seg_end") ) {
+                $complex_region->merge($sub_union_set);
+            }
+        }
+
+        # modify all related set
+        $union_set = $union_set->banish_span( $seg_start, $seg_end );
+        for ( @{$ingroup_names} ) {
+            $indel_sets{$_}
+                = $indel_sets{$_}->banish_span( $seg_start, $seg_end );
+        }
+        $outgroup_indel_set->banish_span( $seg_start, $seg_end );
+        $complex_region = $complex_region->banish_span( $seg_start, $seg_end );
+    }
+
+    # add ingroup-outgroup complex indels to complex_region
+    for my $name ( @{$ingroup_names} ) {
+        my $outgroup_intersect_set
+            = $outgroup_indel_set->intersect( $indel_sets{$name} );
+        for my $out_span ( $outgroup_intersect_set->runlists ) {
+            for my $union_span ( $union_set->runlists ) {
+                my $sub_union_set = AlignDB::IntSpan->new($union_span);
+
+                # union_set > intersect_set
+                if ( $sub_union_set->larger_than($out_span) ) {
+                    $complex_region->merge($sub_union_set);
+                }
+            }
+        }
+    }
+
+    return $complex_region->runlist;
 }
 
 __END__

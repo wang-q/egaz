@@ -422,7 +422,8 @@ sub trim_complex_indel {
     my $intersect_set = AlignDB::IntSpan::intersect( values %indel_sets );
 
     print " " x 4,
-        "Delete complex trim region " . $intersect_set->runlist . "\n";
+        "Delete complex trim region " . $intersect_set->runlist . "\n"
+        if $intersect_set->is_not_empty;
     for ( reverse $intersect_set->spans ) {
         my $seg_start = $_->[0];
         my $seg_end   = $_->[1];

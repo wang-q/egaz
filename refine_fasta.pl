@@ -138,7 +138,10 @@ my $worker_block = sub {
             die "headers not equal to seqs\n" if @lines % 2;
 
             my ( $seq_of, $seq_names ) = ( {}, [] );
-            my $names = [ 0 .. @lines / 2 - 1 ];    # store simplified name
+
+            # store simplified names
+            # because names containing . + () |
+            my $names = [ 0 .. @lines / 2 - 1 ];
             while (@lines) {
                 my $name = shift @lines;
                 $name =~ s/^\>//;

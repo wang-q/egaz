@@ -36,6 +36,9 @@ my $db       = $Config->{database}{db};
 # write_axt parameter
 my $yaml_dir = '.';
 
+# the alignDB has an outgroup
+my $outgroup;
+
 # run in parallel mode
 my $parallel = 1;
 
@@ -51,6 +54,7 @@ GetOptions(
     'u|username=s' => \$username,
     'p|password=s' => \$password,
     'y|yaml_dir=s' => \$yaml_dir,
+    'o|outgroup'   => \$outgroup,
     'parallel=i'   => \$parallel,
 ) or pod2usage(2);
 
@@ -61,7 +65,7 @@ pod2usage( -exitstatus => 0, -verbose => 2 ) if $man;
 # Init objects
 #----------------------------------------------------------#
 my $stopwatch = AlignDB::Stopwatch->new;
-$stopwatch->start_message("Write .fas files from $db...");
+$stopwatch->start_message("Write slice files from $db...");
 
 #----------------------------------------------------------#
 # Write .axt files from alignDB
@@ -136,7 +140,21 @@ sub write_slice {
         my $target_runlist   = $target_info->{seq_runlist};
 
         my ( $target_seq, @query_seqs ) = @{ $obj->get_seqs($align_id) };
-        my $ref_seq = $obj->get_seq_ref($align_id);
+        my $ref_seq;
+        if ($outgroup) {
+            $ref_seq = $obj->get_seq_ref($align_id);
+        }
+
+        my ( $target_name, @query_names ) = $obj->get_names($align_id);
+        my $ref_name;
+        if ($outgroup) {
+            $ref_name = pop @query_names;
+        }
+
+        if ( scalar @query_seqs != scalar @query_names ) {
+            warn "Number of queries names is not equal to one of seqs.\n";
+            next;
+        }
 
         my $target_set = AlignDB::IntSpan->new($target_runlist);
 
@@ -148,7 +166,7 @@ sub write_slice {
         # there may be two or more subslice intersect this alignment
         for my $ss_set ( $iset->sets ) {
 
-            # rhs position set
+            # position set
             my $ss_start = $pos_obj->at_align( $align_id, $ss_set->min );
             my $ss_end   = $pos_obj->at_align( $align_id, $ss_set->max );
             next if $ss_start >= $ss_end;
@@ -167,29 +185,31 @@ sub write_slice {
             # append fas file
             # S288C.chrI(+):27520-29557|species=S288C
             {
-                print "Write fasta files: "
+                print "Write slice files: "
                     . "$target_chr_name:$target_seg_start-$target_seg_end"
                     . "\n";
                 open my $outfh, '>>', $outfile;
-                print {$outfh} ">ref\n";
-                print {$outfh} substr( $ref_seq, $seg_start - 1, $seg_length ),
-                    "\n";
                 print {$outfh}
-                    ">target.$target_chr_name(+):$target_chr_start-$target_chr_end|species=target\n";
+                    ">$target_name.$target_chr_name(+):$target_chr_start-$target_chr_end|species=$target_name\n";
                 print {$outfh}
                     substr( $target_seq, $seg_start - 1, $seg_length ), "\n";
 
                 for my $i ( 0 .. $#query_seqs ) {
-                    print {$outfh} ">query$i\n";
+                    print {$outfh} ">" . $query_names[$i] . "\n";
                     print {$outfh}
                         substr( $query_seqs[$i], $seg_start - 1, $seg_length ),
+                        "\n";
+                }
+                if ($outgroup) {
+                    print {$outfh} ">" . $ref_name . "\n";
+                    print {$outfh}
+                        substr( $ref_seq, $seg_start - 1, $seg_length ),
                         "\n";
                 }
                 print {$outfh} "\n";
                 close $outfh;
             }
         }
-        print "  finish write fasta file\n";
     }
 }
 

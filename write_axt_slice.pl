@@ -65,7 +65,7 @@ pod2usage( -exitstatus => 0, -verbose => 2 ) if $man;
 # Init objects
 #----------------------------------------------------------#
 my $stopwatch = AlignDB::Stopwatch->new;
-$stopwatch->start_message("Write .axt files from $db...");
+$stopwatch->start_message("Write slice files from $db...");
 
 #----------------------------------------------------------#
 # Write .axt files from alignDB
@@ -173,7 +173,7 @@ sub write_slice {
         # there may be two or more subslice intersect this alignment
         for my $ss_set ( $iset->sets ) {
 
-            # rhs position set
+            # position set
             my $ss_start = $pos_obj->at_align( $align_id, $ss_set->min );
             my $ss_end   = $pos_obj->at_align( $align_id, $ss_set->max );
             next if $ss_start >= $ss_end;
@@ -203,7 +203,7 @@ sub write_slice {
 
             # append axt file
             {
-                print "Append axt files: "
+                print "Write slice files: "
                     . "$target_chr_name:$target_seg_start-$target_seg_end"
                     . "\n";
                 open my $outfh, '>>', $outfile;
@@ -221,7 +221,7 @@ sub write_slice {
                 close $outfh;
             }
         }
-        print "  finish write axt file\n";
+        print "  finish write slice files\n";
     }
 }
 

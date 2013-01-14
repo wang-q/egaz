@@ -37,6 +37,14 @@ my $ensembl_db = $Config->{database}{ensembl};
 my $length_threshold = $Config->{write}{feature_threshold};
 my $feature          = $Config->{write}{feature};
 
+# removing $n integers from each end of each span of $set.
+# If $n is negative, then -$n integers are added to each end of each span.
+# use AlignDB::IntSpan->inset()
+my $inset;
+
+# write inverted sets
+my $invert;
+
 # run in parallel mode
 my $parallel = $Config->{generate}{parallel};
 
@@ -48,12 +56,14 @@ GetOptions(
     'man'           => \$man,
     's|server=s'    => \$server,
     'P|port=i'      => \$port,
-    'd|db=s'        => \$db,
     'u|username=s'  => \$username,
     'p|password=s'  => \$password,
+    'd|db=s'        => \$db,
     'e|ensembl=s'   => \$ensembl_db,
     'l|lt|length=i' => \$length_threshold,
     'feature=s'     => \$feature,
+    'inset=i'       => \$inset,
+    'invert'        => \$invert,
     'parallel=i'    => \$parallel,
 ) or pod2usage(2);
 
@@ -68,6 +78,8 @@ $stopwatch->start_message("Write slice files from $db...");
 
 # output dir
 my $dir = "${db}_${feature}";
+$dir .= "_inset$inset" if $inset;
+$dir .= "_invert"      if $invert;
 mkdir $dir, 0777 unless -e $dir;
 
 #----------------------------#
@@ -116,8 +128,9 @@ my $worker = sub {
     print "id => $chr_id, name => $chr_name, length => $chr_length\n";
 
     # for each align
-    my @align_ids = @{ $obj->get_align_ids_of_chr($chr_id) };
-    my $chr_set   = AlignDB::IntSpan->new;
+    my @align_ids     = @{ $obj->get_align_ids_of_chr($chr_id) };
+    my $chr_ftr_set   = AlignDB::IntSpan->new;
+    my $chr_align_set = AlignDB::IntSpan->new;
     for my $align_id (@align_ids) {
         $obj->process_message($align_id);
 
@@ -126,6 +139,8 @@ my $worker = sub {
         my $target_chr_name  = $target_info->{chr_name};
         my $target_chr_start = $target_info->{chr_start};
         my $target_chr_end   = $target_info->{chr_end};
+
+        $chr_align_set->add("$target_chr_start-$target_chr_end");
 
         # make a new ensembl slice object
         my $ensembl_chr_name = $target_chr_name;
@@ -145,15 +160,28 @@ my $worker = sub {
         my $ftr_chr_set = $slice->{"_$feature\_set"};
 
         next unless $ftr_chr_set;
+        next if $ftr_chr_set->is_empty;
+        if ($inset) {
+            $ftr_chr_set->inset($inset);
+        }
+
         for my $set ( $ftr_chr_set->sets ) {
             next if $set->size < $length_threshold;
-            $chr_set->add($set);
+            $chr_ftr_set->add($set);
         }
     }
 
+    # $chr_ftr_set should be subset of $chr_align_set
+    $chr_ftr_set = $chr_ftr_set->intersect($chr_align_set);
+
+    # the inverted set
+    if ($invert) {
+        $chr_ftr_set = $chr_align_set->diff($chr_ftr_set);
+    }
+
     my $filename = File::Spec->catfile( $dir, "$chr_name.$feature.yml" );
-    if ( $chr_set->is_not_empty ) {
-        DumpFile( $filename, $chr_set->runlist );
+    if ( $chr_ftr_set->is_not_empty ) {
+        DumpFile( $filename, $chr_ftr_set->runlist );
         print "Finish merge $feature of $chr_name\n";
     }
     else {
@@ -177,7 +205,7 @@ __END__
 
 =head1 NAME
 
-    write_axt.pl - extract sequence of a certain feature from alignDB
+    write_runlist_feature.pl - extract runlists of a certain feature from alignDB
 
 =head1 SYNOPSIS
 

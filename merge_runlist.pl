@@ -55,7 +55,7 @@ my $file_out = File::Spec->catfile(@dirs);
 
 for my $file (@yml_files) {
     my ( $base, $dir ) = fileparse( $file, ".yaml", ".yml" );
-    my ($word) = split /[^\w+]/, $base;
+    my ($word) = split /[^\w]+/, $base;
 
     my $content = LoadFile($file);
     $master->{$word} = $content;
@@ -63,6 +63,14 @@ for my $file (@yml_files) {
     unlink $file;
 }
 DumpFile( $file_out, $master );
+
+open my $report_fh, '>', "$file_out.txt";
+for my $key (sort keys %{$master}) {
+    my $set = AlignDB::IntSpan->new($master->{$key});
+    printf {$report_fh} "key:\t[%s]\tlength:\t[%s]\n", $key, $set->size;
+}
+close $report_fh;
+
 $stopwatch->end_message;
 
 __END__

@@ -139,6 +139,11 @@ sub write_slice {
         my $target_chr_end   = $target_info->{chr_end};
         my $target_runlist   = $target_info->{seq_runlist};
 
+        my $align_chr_set
+            = AlignDB::IntSpan->new("$target_chr_start-$target_chr_end");
+        my $iset = $slice_set->intersect($align_chr_set);
+        next if $iset->is_empty;
+
         my ( $target_seq, @query_seqs ) = @{ $obj->get_seqs($align_id) };
         my $ref_seq;
         if ($outgroup) {
@@ -157,11 +162,6 @@ sub write_slice {
         }
 
         my $target_set = AlignDB::IntSpan->new($target_runlist);
-
-        my $align_chr_set
-            = AlignDB::IntSpan->new("$target_chr_start-$target_chr_end");
-        my $iset = $slice_set->intersect($align_chr_set);
-        next if $iset->is_empty;
 
         # there may be two or more subslice intersect this alignment
         for my $ss_set ( $iset->sets ) {

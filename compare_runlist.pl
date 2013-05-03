@@ -25,16 +25,19 @@ my $file2;
 
 my $outfile;
 
+my $remove_chr;
+
 my $man  = 0;
 my $help = 0;
 
 GetOptions(
-    'help|?'     => \$help,
-    'man'        => \$man,
+    'help|?'         => \$help,
+    'man'            => \$man,
     'op|operation=s' => \$op,
-    'f1|file1=s' => \$file1,
-    'f2|file2=s' => \$file2,
-    'o|outfile=s' => \$outfile,
+    'f1|file1=s'     => \$file1,
+    'f2|file2=s'     => \$file2,
+    'o|outfile=s'    => \$outfile,
+    'r|remove'       => \$remove_chr,
 ) or pod2usage(2);
 
 pod2usage(1) if $help;
@@ -74,20 +77,22 @@ for my $file ( $file1, $file2 ) {
 
     my $set_of = {};
     for my $key ( sort keys %{$runlist_of} ) {
-        $seen{$key}++;
+        my $new_key = $key;
+        $new_key =~ s/chr0?// if $remove_chr;
+        $seen{$new_key}++;
         my $set = AlignDB::IntSpan->new( $runlist_of->{$key} );
-        printf "key:\t%s\tlength:\t%s\n", $key, $set->size;
-        $set_of->{$key} = $set;
+        printf "key:\t%s\tlength:\t%s\n", $new_key, $set->size;
+        $set_of->{$new_key} = $set;
     }
     push @sets, $set_of;
 }
 print "\n";
 
-my @keys = grep {$seen{$_} >= 2} sort keys %seen;
+my @keys = grep { $seen{$_} >= 2 } sort keys %seen;
 my $op_runlist_of = {};
 for my $key (@keys) {
     print "For $key\n";
-    my $op_set = $sets[0]->{$key}->$op($sets[1]->{$key});
+    my $op_set = $sets[0]->{$key}->$op( $sets[1]->{$key} );
     next if $op_set->is_empty;
     $op_runlist_of->{$key} = $op_set->runlist;
     print " " x 4, $op_set->size, "\n";

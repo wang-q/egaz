@@ -15,13 +15,15 @@ use List::Flatten;
 use List::MoreUtils qw(uniq zip);
 use Time::Duration;
 use Roman;
+use Path::Class;
+use String::Compare;
+use Number::Format qw(format_bytes);
+
 use File::Find::Rule;
 use File::Spec;
 use File::Basename;
 use File::Remove qw(remove);
-use Path::Class;
-use String::Compare;
-use Number::Format qw(format_bytes);
+use File::Copy::Recursive qw(fcopy);
 
 use FindBin;
 
@@ -100,28 +102,9 @@ if ( scalar @files == 0 ) {
 # decompress
 #----------------------------#
 if ($gzip) {
-    print "maf files is gzipped, multiz can't handle them.\n";
-    print "Decompress...\n";
+    decompress_gzip(@files);
 
-    my $worker = sub {
-        my $job = shift;
-
-        my $file = $job;
-        my $cmd  = "gzip -d $file";
-        exec_cmd($cmd);
-
-        return;
-    };
-
-    my @jobs = sort @files;
-    my $run  = AlignDB::Run->new(
-        parallel => $parallel,
-        jobs     => \@jobs,
-        code     => $worker,
-    );
-    $run->run;
-
-    # refind newly decompressed maf files
+    # find newly decompressed maf files
     @files = File::Find::Rule->file->name("*$suffix")->in(@dirs);
 }
 
@@ -130,7 +113,7 @@ if ($gzip) {
 #----------------------------#
 my @species;   # species list gathered from maf files; and then shift target out
 my %species_of;    # file to species
-my $number_of_chr;
+my %seen;          # count
 {
     print "Get species list\n";
     for (@files) {
@@ -139,7 +122,6 @@ my $number_of_chr;
     }
 
     # count
-    my %seen;
     for my $key ( keys %species_of ) {
         for my $elem ( @{ $species_of{$key} } ) {
             $seen{$elem}++;
@@ -149,11 +131,27 @@ my $number_of_chr;
         sort { $b->[1] <=> $a->[1] }
         map { [ $_, $seen{$_} ] }
         keys %seen;
+}
 
-    # check species number
-    my $number = scalar @species;
-    die "There're only $number species, [@species].\nCan't run multiz.\n"
-        if $number < 3;
+# check number of species
+my $number_of_species = scalar @species;
+if ( $number_of_species < 3 ) {
+    print "There're too few species, [@species].\nCan't run multiz.\n";
+    print "Just copy pairwise maf to [$out_dir]\n";
+
+    for my $file (@files) {
+        fcopy( $file, $out_dir );
+    }
+
+    if ($gzip) {
+        compress_gzip(@files);
+    }
+
+    exit;
+}
+
+my $number_of_chr;
+{
 
     if ( !$target_name ) {
         printf "%s appears %d times, use it as target.\n", $species[0],
@@ -316,9 +314,9 @@ my $worker = sub {
         # reused by following multiz processes
         print "Run multiz...\n";
         my $cmd
-            = "$multiz_bin/multiz" 
-            . " $maf1" 
-            . " $maf2" . " 1 " 
+            = "$multiz_bin/multiz"
+            . " $maf1"
+            . " $maf2" . " 1 "
             . " $out1"
             . " $out2"
             . " > $maf_step";
@@ -381,26 +379,7 @@ $run->run;
 # compress
 #----------------------------#
 if ($gzip) {
-    print "Restore compressed state of maf files.\n";
-    print "Compress...\n";
-
-    my $worker = sub {
-        my $job = shift;
-
-        my $file = $job;
-        my $cmd  = "gzip $file";
-        exec_cmd($cmd);
-
-        return;
-    };
-
-    my @jobs = sort @files;
-    my $run  = AlignDB::Run->new(
-        parallel => $parallel,
-        jobs     => \@jobs,
-        code     => $worker,
-    );
-    $run->run;
+    compress_gzip(@files);
 }
 
 print "\n";
@@ -420,6 +399,52 @@ sub exec_cmd {
     print "-" x 30, "\n";
 
     system $cmd;
+}
+
+sub decompress_gzip {
+    my @files = @_;
+
+    print "maf files is gzipped, multiz can't handle them.\n";
+    print "Decompress...\n";
+
+    my $worker = sub {
+        my $job  = shift;
+        my $file = $job;
+        my $cmd  = "gzip -d $file";
+        exec_cmd($cmd);
+        return;
+    };
+
+    my @jobs = sort @files;
+    my $run  = AlignDB::Run->new(
+        parallel => $parallel,
+        jobs     => \@jobs,
+        code     => $worker,
+    );
+    $run->run;
+}
+
+sub compress_gzip {
+    my @files = @_;
+
+    print "Restore compressed state of maf files.\n";
+    print "Compress...\n";
+
+    my $worker = sub {
+        my $job  = shift;
+        my $file = $job;
+        my $cmd  = "gzip $file";
+        exec_cmd($cmd);
+        return;
+    };
+
+    my @jobs = sort @files;
+    my $run  = AlignDB::Run->new(
+        parallel => $parallel,
+        jobs     => \@jobs,
+        code     => $worker,
+    );
+    $run->run;
 }
 
 #----------------------------#

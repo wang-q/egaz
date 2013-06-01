@@ -37,6 +37,10 @@ my ( $t_parted, $q_parted );
 # relationship of target and query is one to one
 my $paired;
 
+# self-alignment
+# http://www.bx.psu.edu/miller_lab/dist/README.lastz-1.01.50/README.lastz-1.01.50.html#ex_self
+my $is_self;
+
 # dirs
 my ( $dir_target, $dir_query );
 my $dir_lav = ".";
@@ -78,6 +82,7 @@ GetOptions(
     'tp|t_parted'         => \$t_parted,
     'qp|q_parted'         => \$q_parted,
     'paired'              => \$paired,
+    'is_self'             => \$is_self,
     'O=s'                 => \$opt{O},
     'E=s'                 => \$opt{E},
     'Q=s'                 => \$opt{Q},
@@ -121,6 +126,11 @@ $opt{Q} = "$FindBin::Bin/matrix/" . $opt{Q} if $opt{Q};
 unless ( -e $dir_lav ) {
     mkdir $dir_lav, 0777
         or die "Cannot create \"$dir_lav\" directory: $!";
+}
+
+# only lastz support self-alignments
+if ( $is_self and !$lastz ) {
+    die "only lastz support self-alignments\n";
 }
 
 #----------------------------------------------------------#
@@ -185,6 +195,10 @@ printf "\n----%4s .fa files for query----\n",  scalar @query_files;
         }
 
         my $bz_cmd = "$path_blastz $target $query";
+        if ( $is_self and $target eq $query ) {
+            $bz_cmd = "$path_blastz $target --self";
+        }
+
         for my $key ( keys %{$opt} ) {
             my $value = $opt->{$key};
             if ( defined $value ) {

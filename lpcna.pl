@@ -213,12 +213,6 @@ for ( $dir_net, $dir_axtnet ) {
     $run->run;
 
     print "\n";
-}
-
-#----------------------------------------------------------#
-# chain-net section
-#----------------------------------------------------------#
-{
 
     # chainMergeSort - Combine sorted files into larger sorted file
     # usage:
@@ -240,6 +234,14 @@ for ( $dir_net, $dir_axtnet ) {
         . " $dir_lav/all.pre.chain";
     exec_cmd($cmd);
 
+    print "\n";
+}
+
+#----------------------------------------------------------#
+# chain-net section
+#----------------------------------------------------------#
+{
+
     # chainNet - Make alignment nets out of chains
     # usage:
     #   chainNet in.chain target.sizes query.sizes target.net query.net
@@ -247,7 +249,7 @@ for ( $dir_net, $dir_axtnet ) {
     # netSyntenic - Add synteny info to net.
     # usage:
     #   netSyntenic in.net out.net
-    $cmd
+    my $cmd
         = "$kent_bin/chainNet -minSpace=1"
         . " $dir_lav/all.pre.chain"
         . " $dir_target/chr.sizes"
@@ -323,7 +325,7 @@ for ( $dir_net, $dir_axtnet ) {
         #   axtSort in.axt out.axt
         print "Run netToAxt...\n";
         my $cmd
-            = "$kent_bin/netToAxt" 
+            = "$kent_bin/netToAxt"
             . " $file"
             . " $dir_lav/all.pre.chain"
             . " $dir_target/chr.2bit"

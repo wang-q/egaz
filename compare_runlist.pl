@@ -57,6 +57,9 @@ elsif ( $op =~ /^uni/i ) {
 elsif ( $op =~ /^int/i ) {
     $op = 'intersect';
 }
+elsif ( $op =~ /^xor/i ) {
+    $op = 'xor';
+}
 
 unless ($outfile) {
     $outfile = "$op.yml";

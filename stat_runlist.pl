@@ -28,7 +28,7 @@ my $file;
 
 my $outfile;
 
-my $remove_chr;
+my $remove_chr;    # remove "chr" in "chr1"
 
 my $man  = 0;
 my $help = 0;
@@ -74,16 +74,25 @@ print "\n";
 
 open my $fh, '>', $outfile;
 print {$fh} "name,length,size,coverage\n";
+my ( $all_length, $all_size, $all_coverage );
 for my $key ( sort keys %{$set_of} ) {
     print "For $key\n";
-    if ( exists $length_of->{$key} ) {
-        my $length   = $length_of->{$key};
-        my $size     = $set_of->{$key}->size;
-        my $coverage = $size / $length;
-        print "$key,$length,$size,$coverage\n";
-        print {$fh} "$key,$length,$size,$coverage\n";
-    }
+
+    my $length   = $length_of->{$key};
+    my $size     = $set_of->{$key}->size;
+    my $coverage = $size / $length;
+
+    $all_length += $length;
+    $all_size   += $size;
+
+    print "$key,$length,$size,$coverage\n";
+    print {$fh} "$key,$length,$size,$coverage\n";
+
 }
+
+$all_coverage = $all_size / $all_length;
+print "all,$all_length,$all_size,$all_coverage\n";
+print {$fh} "all,$all_length,$all_size,$all_coverage\n";
 close $fh;
 
 $stopwatch->end_message;
@@ -135,11 +144,11 @@ __END__
 
 =head1 NAME
 
-    compare_runlist.pl - compare 2 chromosome runlists
+    stat_runlist.pl - coverage on chromosomes for runlists
 
 =head1 SYNOPSIS
 
-    perl compare_runlist.pl [options]
+    perl stat_runlist.pl [options]
       Options:
         --help              brief help message
         --man               full documentation

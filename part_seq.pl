@@ -26,8 +26,8 @@ my $help = 0;
 GetOptions(
     'help|?'        => \$help,
     'man'           => \$man,
-    'in_dir=s'      => \$in_dir,
-    'out_dir=s'     => \$out_dir,
+    'i|in_dir=s'    => \$in_dir,
+    'o|out_dir=s'   => \$out_dir,
     'chunk_size=i'  => \$chunk_size,
     'overlap=i'     => \$overlap,
     'wrap_length=i' => \$wrap_length,
@@ -97,8 +97,8 @@ for my $file (@files) {
 
 sub overlappingIntervals {
 
-   # Return a list of overlapping intervals (1-based starts if $opt_oneBased).
-   # Starts increment by $chunk; each end overlaps the next start by $lap.
+    # Return a list of overlapping intervals (1-based starts if $opt_oneBased).
+    # Starts increment by $chunk; each end overlaps the next start by $lap.
     my ( $start, $end, $chunk, $lap ) = @_;
     my @intervals;
     for ( my $iStart = $start; $iStart < $end; $iStart += $chunk ) {
@@ -152,12 +152,12 @@ exit;
 
 =head1 SYNOPSIS
 
-    perl part_seq.pl -in t\S288C -out t\S288C_parted -chunk 500000
-    perl part_seq.pl -in t\RM11 -out t\parted -chunk 500000
+    perl part_seq.pl -i t\S288C -o t\S288C_parted -chunk 500000
+    perl part_seq.pl -i t\RM11 -o t\parted -chunk 500000
     
     
-    perl part_seq.pl -in d:\data\alignment\mouse17\C57BL_6N_Mouse_Genome.fa\ -out d:\data\alignment\mouse17\C57BL_6N_parted -chunk 10010000 -overlap 10000
-    perl part_seq.pl -in d:\data\alignment\mouse17\A_J_Mouse_Genome.fa\ -out d:\data\alignment\mouse17\A_J_parted -chunk 10000000 -overlap 0
+    perl part_seq.pl -i d:\data\alignment\mouse17\C57BL_6N_Mouse_Genome.fa\ -o d:\data\alignment\mouse17\C57BL_6N_parted -chunk 10010000 -overlap 10000
+    perl part_seq.pl -i d:\data\alignment\mouse17\A_J_Mouse_Genome.fa\ -o d:\data\alignment\mouse17\A_J_parted -chunk 10000000 -overlap 0
 
 =head1 OPTIONS
 

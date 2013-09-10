@@ -21,6 +21,8 @@ my $dir;
 my $length = 1000;
 my $gzip;    # open .gz
 
+my $avoid_regex;    # '(random|hap|Un|M)';
+
 my $output;
 
 my $man  = 0;
@@ -31,8 +33,9 @@ GetOptions(
     'man'        => \$man,
     'd|dir=s'    => \$dir,
     'l|length=s' => \$length,
-    'o|output=s' => \$output,
     'g|gzip'     => \$gzip,
+    'r|regex=s'  => \$avoid_regex,
+    'o|output=s' => \$output,
 ) or pod2usage(2);
 
 pod2usage(1) if $help;
@@ -78,6 +81,11 @@ for my $file (@files) {
     my $data = parse_axt( $file, 1 );
     @{$data} = grep { $_->[2] >= $length } @{$data};
 
+    if ($avoid_regex) {
+        @{$data} = grep { $_->[0]{chr_name} !~ /$avoid_regex/i } @{$data};
+        @{$data} = grep { $_->[1]{chr_name} !~ /$avoid_regex/i } @{$data};
+    }
+
     for my $info_ref ( @{$data} ) {
         for my $i ( 0, 1 ) {
             my $chr_name  = $info_ref->[$i]{chr_name};
@@ -96,7 +104,7 @@ for my $file (@files) {
 
             my $seq = $info_ref->[$i]{seq};
             $seq =~ tr/-//d;
-            $seq  = uc $seq;
+            $seq = uc $seq;
             print {$fasta_fh} ">$runlist\n";
             print {$fasta_fh} "$seq\n";
         }

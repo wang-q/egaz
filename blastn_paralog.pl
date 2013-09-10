@@ -47,7 +47,7 @@ GetOptions(
     'help|?'       => \$help,
     'man|m'        => \$man,
     'f|file=s'     => \$file,
-    'v|view=s'     => \$alignment_view,
+    'm|view=s'     => \$alignment_view,
     'i|identity=i' => \$identity,
     'c|coverage=i' => \$coverage,
 ) or pod2usage(2);

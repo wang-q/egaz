@@ -11,6 +11,7 @@ use File::Find::Rule;
 use File::Basename;
 use IO::Zlib;
 use Graph;
+use List::MoreUtils qw(uniq);
 
 use AlignDB::IntSpan;
 use AlignDB::Stopwatch;
@@ -22,7 +23,7 @@ my @files;
 
 my $output;
 
-my $ratio_cover = 0.9;    # When larger than this ratio, merge runlists
+my $ratio_cover = 0.95;    # When larger than this ratio, merge runlists
 
 my $verbose;
 
@@ -74,9 +75,10 @@ for my $file (@files) {
         for my $node (@nodes) {
             if ( !$g->has_vertex($node) ) {
                 $g->add_vertex($node);
-                my ( $chr, $set ) = string_to_set($node);
-                $g->set_vertex_attribute( $node, "chr", $chr );
-                $g->set_vertex_attribute( $node, "set", $set );
+                my ( $chr, $set, $strand ) = string_to_set($node);
+                $g->set_vertex_attribute( $node, "chr",    $chr );
+                $g->set_vertex_attribute( $node, "set",    $set );
+                $g->set_vertex_attribute( $node, "strand", $strand );
 
                 $chrs{$chr}++;
                 print "Add node $node\n";
@@ -112,7 +114,8 @@ for my $chr ( sort keys %chrs ) {
                     and $coverage_j >= $ratio_cover )
                 {
                     $g->add_edge( $nodes[$i], $nodes[$j] );
-                    print " " x 8, "Merge with Node $j / @{[$#nodes]}\t$node_j\n";
+                    print " " x 8,
+                        "Merge with Node $j / @{[$#nodes]}\t$node_j\n";
                 }
             }
         }
@@ -133,18 +136,42 @@ my $merged_of = {};
     for my $c (@cc) {
         my $chr = $g->get_vertex_attribute( $c->[0], "chr" );
         my $merge_set = AlignDB::IntSpan->new;
-        for my $node (@{$c}) {
+        my @strands;
+        my ( $strand, $change );
+        for my $node ( @{$c} ) {
             my $set = $g->get_vertex_attribute( $node, "set" );
             $merge_set->add($set);
+            push @strands, $g->get_vertex_attribute( $node, "strand" );
         }
-        my $merge_node = "$chr:" . $merge_set->runlist;
-        
-        for my $node (@{$c}) {
-            $merged_of->{$node} = $merge_node;
+        @strands = uniq(@strands);
+        if ( @strands == 1 ) {
+            print " " x 4, "All nodes have the same strand\n";
+            $strand = $strands[0];
+            $change = 0;
+        }
+        else {
+            print " " x 4, "Nodes have different strands\n";
+            $strand = "+";
+            $change = 1;
+        }
+        my $merge_node = "$chr($strand):" . $merge_set->runlist;
+
+        for my $node ( @{$c} ) {
+            if ($change) {
+                $node =~ /\(.\)/;
+                my $node_strand = $1;
+                if ( $node_strand ne $strand ) {
+                    $change = 1;
+                }
+                else {
+                    $change = 0;
+                }
+            }
+            $merged_of->{$node} = { node => $merge_node, change => $change };
             print "$node => $merge_node\n";
         }
     }
-    
+
     DumpFile( $output, $merged_of );
 }
 
@@ -158,9 +185,14 @@ sub string_to_set {
     my $node = shift;
 
     my ( $chr, $runlist ) = split /:/, $node;
+    my $strand = "+";
+    if ( $chr =~ /\((.+)\)/ ) {
+        $strand = $1;
+        $chr =~ s/\(.+\)//;
+    }
     my $set = AlignDB::IntSpan->new($runlist);
 
-    return ( $chr, $set );
+    return ( $chr, $set, $strand );
 }
 
 __END__

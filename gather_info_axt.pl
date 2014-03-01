@@ -88,9 +88,10 @@ for my $file (@files) {
 
     for my $info_ref ( @{$data} ) {
         for my $i ( 0, 1 ) {
-            my $chr_name  = $info_ref->[$i]{chr_name};
-            my $chr_start = $info_ref->[$i]{chr_start};
-            my $chr_end   = $info_ref->[$i]{chr_end};
+            my $chr_name   = $info_ref->[$i]{chr_name};
+            my $chr_strand = $info_ref->[$i]{chr_strand};
+            my $chr_start  = $info_ref->[$i]{chr_start};
+            my $chr_end    = $info_ref->[$i]{chr_end};
 
             # whole runlists
             if ( !exists $covered->{$i}{$chr_name} ) {
@@ -99,7 +100,7 @@ for my $file (@files) {
             $covered->{$i}{$chr_name}->add_range( $chr_start, $chr_end );
 
             # piece runlist
-            my $runlist = "$chr_name:$chr_start-$chr_end";
+            my $runlist = "$chr_name($chr_strand):$chr_start-$chr_end";
             print {$tsv_fh} "$runlist\t";
 
             my $seq = $info_ref->[$i]{seq};
@@ -108,7 +109,7 @@ for my $file (@files) {
             print {$fasta_fh} ">$runlist\n";
             print {$fasta_fh} "$seq\n";
         }
-        print {$tsv_fh} $info_ref->[1]{chr_strand} . "\n";
+        print {$tsv_fh} "+\n";
     }
 }
 close $tsv_fh;
@@ -183,6 +184,15 @@ sub parse_axt {
     }
 
     return \@data;
+}
+
+sub revcom {
+    my $seq = shift;
+
+    $seq =~ tr/ACGTMRWSYKVHDBNacgtmrwsykvhdbn-/TGCAKYWSRMBDHVNtgcakyswrmbdhvn-/;
+    my $seq_rc = reverse $seq;
+
+    return $seq_rc;
 }
 
 __END__

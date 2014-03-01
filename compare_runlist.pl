@@ -9,6 +9,7 @@ use Config::Tiny;
 use YAML::Syck qw(Dump Load DumpFile LoadFile);
 
 use List::MoreUtils qw(any all uniq);
+use Set::Scalar;
 
 use AlignDB::IntSpan;
 use AlignDB::Stopwatch;
@@ -23,6 +24,8 @@ my $op = 'intersect';
 my $file1;
 my $file2;
 
+my $multi_key;    # file1 has multiple keys
+
 my $outfile;
 
 my $remove_chr;
@@ -36,6 +39,7 @@ GetOptions(
     'op|operation=s' => \$op,
     'f1|file1=s'     => \$file1,
     'f2|file2=s'     => \$file2,
+    'mk'             => \$multi_key,
     'o|outfile=s'    => \$outfile,
     'r|remove'       => \$remove_chr,
 ) or pod2usage(2);
@@ -71,39 +75,100 @@ unless ($outfile) {
 my $stopwatch = AlignDB::Stopwatch->new;
 $stopwatch->start_message("Compare runlist...");
 
-print "Loading...\n";
-my @sets;
-my %seen;
-for my $file ( $file1, $file2 ) {
-    print "Filename: $file\n";
-    my $runlist_of = LoadFile($file);
+#----------------------------#
+# Loading
+#----------------------------#
+my $all_name_set = Set::Scalar->new;
 
-    my $set_of = {};
-    for my $key ( sort keys %{$runlist_of} ) {
-        my $new_key = $key;
-        $new_key =~ s/chr0?// if $remove_chr;
-        $seen{$new_key}++;
-        my $set = AlignDB::IntSpan->new( $runlist_of->{$key} );
-        printf "key:\t%s\tlength:\t%s\n", $new_key, $set->size;
-        $set_of->{$new_key} = $set;
+# file1
+print "Loading $file1...\n";
+my $s1_of = {};
+my @keys;
+if ($multi_key) {
+    my $yml = LoadFile($file1);
+    @keys = sort keys %{$yml};
+
+    for my $key (@keys) {
+        my ( $chr_set_of, $chr_name_set )
+            = runlist2set( $yml->{$key}, $remove_chr );
+        $s1_of->{$key} = $chr_set_of;
+        $all_name_set->insert( $chr_name_set->members );
     }
-    push @sets, $set_of;
 }
-print "\n";
+else {
+    @keys = ("__single");
 
-my @keys = grep { $seen{$_} >= 2 } sort keys %seen;
-my $op_runlist_of = {};
+    my ( $chr_set_of, $chr_name_set )
+        = runlist2set( LoadFile($file1), $remove_chr );
+    $s1_of->{__single} = $chr_set_of;
+    $all_name_set->insert( $chr_name_set->members );
+}
+
+# file2
+print "Loading $file2...\n";
+my $s2;
+{
+    my ( $chr_set_of, $chr_name_set )
+        = runlist2set( LoadFile($file2), $remove_chr );
+    $s2 = $chr_set_of;
+    $all_name_set->insert( $chr_name_set->members );
+}
+
+#----------------------------#
+# Operation
+#----------------------------#
+print "\nOperation $op\n";
+my $op_result_of = { map { $_ => {} } @keys };
+
 for my $key (@keys) {
-    print "For $key\n";
-    my $op_set = $sets[0]->{$key}->$op( $sets[1]->{$key} );
-    next if $op_set->is_empty;
-    $op_runlist_of->{$key} = $op_set->runlist;
-    print " " x 4, $op_set->size, "\n";
+    print "For key $key\n";
+    my $s1 = $s1_of->{$key};
+
+    # give empty set to non-existing chrs
+    for my $s ( $s1, $s2 ) {
+        for my $chr ( $all_name_set->members ) {
+            if ( !exists $s->{$chr} ) {
+                $s->{$chr} = AlignDB::IntSpan->new;
+            }
+        }
+    }
+
+    # operate on each chr
+    for my $chr ( sort $all_name_set->members ) {
+        print "\tFor chr $chr\n";
+        my $op_set = $s1->{$chr}->$op( $s2->{$chr} );
+        $op_result_of->{$key}{$chr} = $op_set->runlist;
+        print "\t\tlength:\t", $op_set->size, "\n";
+    }
 }
 
-DumpFile( $outfile, $op_runlist_of );
+if ($multi_key) {
+    DumpFile( $outfile, $op_result_of );
+}
+else {
+    DumpFile( $outfile, $op_result_of->{__single} );
+}
 
 $stopwatch->end_message;
+
+sub runlist2set {
+    my $runlist_of = shift;
+    my $remove_chr = shift;
+
+    my $set_of       = {};
+    my $chr_name_set = Set::Scalar->new;
+
+    for my $chr ( sort keys %{$runlist_of} ) {
+        my $new_chr = $chr;
+        $new_chr =~ s/chr0?// if $remove_chr;
+        $chr_name_set->insert($chr);
+        my $set = AlignDB::IntSpan->new( $runlist_of->{$chr} );
+        printf "\tkey:\t%s\tlength:\t%s\n", $new_chr, $set->size;
+        $set_of->{$new_chr} = $set;
+    }
+
+    return ( $set_of, $chr_name_set );
+}
 
 __END__
 

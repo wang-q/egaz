@@ -95,8 +95,10 @@ while ( my $result = $searchio->next_result ) {
 
         my $hit_length = $hit->length;
         next if $hit_length < 100;
-        my $query_set = AlignDB::IntSpan->new;
-        my $hit_set   = AlignDB::IntSpan->new;
+        my $query_set     = AlignDB::IntSpan->new;
+        my $hit_set       = AlignDB::IntSpan->new;
+        my $hit_set_plus  = AlignDB::IntSpan->new;
+        my $hit_set_minus = AlignDB::IntSpan->new;
         while ( my $hsp = $hit->next_hsp ) {
 
             # process the Bio::Search::HSP::HSPI object
@@ -130,12 +132,26 @@ while ( my $result = $searchio->next_result ) {
             }
             $hit_set->add_range( $h_start, $h_end );
 
+            if ( $hsp_strand eq "+" ) {
+                $hit_set_plus->add_range( $h_start, $h_end );
+            }
+            elsif ( $hsp_strand eq "-" ) {
+                $hit_set_minus->add_range( $h_start, $h_end );
+            }
         }
         my $query_coverage = $query_set->size / $query_length;
         my $hit_coverage   = $hit_set->size / $hit_length;
         next if $query_coverage < $coverage;
         next if $hit_coverage < $coverage;
-        print {$out_fh} join "\t", $query_name, $hit_name, $query_length,
+
+        next if $query_name eq $hit_name;
+        my $strand = "+";
+        if ( $hit_set_plus->size < $hit_set_minus->size ) {
+            print " " x 4, "Hit on revere strand\n";
+            $strand = "-";
+        }
+        print {$out_fh} join "\t", $query_name, $hit_name, $strand,
+            $query_length,
             $query_coverage, $query_set->runlist, $hit_length,
             $hit_coverage, $hit_set->runlist;
         print {$out_fh} "\n";

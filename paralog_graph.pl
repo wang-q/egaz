@@ -77,29 +77,38 @@ for my $file (@files) {
     while ( my $line = <$in_fh> ) {
         chomp $line;
 
-        my @nodes = ( split /\t/, $line )[ 0, 1 ];
+        my (@nodes) = ( split /\t/, $line )[ 0, 1 ];
+        my ($hit_strand) = ( split /\t/, $line )[2];
         for my $node (@nodes) {
 
             # convert to merged node
             if ( exists $merged_of->{$node} ) {
-                print "$node => @{[$merged_of->{$node}]}\n" if $verbose;
-                $node = $merged_of->{$node};
+                printf "%s => %s\n", $node, $merged_of->{$node}{node}
+                    if $verbose;
+                $node = $merged_of->{$node}{node};
+                if ( $merged_of->{$node}{change} ) {
+                    $hit_strand = change_strand($hit_strand);
+                }
             }
 
             # add node
             if ( !$g->has_vertex($node) ) {
                 $g->add_vertex($node);
-                $g->set_vertex_attribute( $node, "set",
-                    string_to_hashobj($node) );
+                my ( $chr, $set, $strand ) = string_to_set($node);
+                $g->set_vertex_attribute( $node, "chr",    $chr );
+                $g->set_vertex_attribute( $node, "set",    $set );
+                $g->set_vertex_attribute( $node, "strand", $strand );
                 print "Add node $node\n";
             }
         }
 
         # add edge
         $g->add_edge(@nodes);
+        $g->set_edge_attribute( @nodes, "strand", $hit_strand );
 
         print join "\t", @nodes, "\n" if $verbose;
-        print "Nodes @{[scalar $g->vertices]} \t Edges @{[scalar $g->edges]}\n\n"
+        printf "Nodes %d \t Edges %d\n\n", scalar $g->vertices,
+            scalar $g->edges
             if $verbose;
     }
     $stopwatch->block_message("Finish processing [$file]");
@@ -113,21 +122,49 @@ exit;
 #----------------------------------------------------------#
 # Subroutines
 #----------------------------------------------------------#
-sub string_to_hashobj {
+sub string_to_set {
     my $node = shift;
 
-    my $set_of = {};
-    my @chr_runlists = grep {defined} split /;/, $node;
-    for my $chr_runlist (@chr_runlists) {
-        my ( $chr_name, $runlist ) = split /:/, $chr_runlist;
-        if ( !exists $set_of->{$chr_name} ) {
-            $set_of->{$chr_name} = AlignDB::IntSpan->new;
-        }
-        $set_of->{$chr_name}->add($runlist);
+    my ( $chr, $runlist ) = split /:/, $node;
+    my $strand = "+";
+    if ( $chr =~ /\((.+)\)/ ) {
+        $strand = $1;
+        $chr =~ s/\(.+\)//;
     }
+    my $set = AlignDB::IntSpan->new($runlist);
 
-    return $set_of;
+    return ( $chr, $set, $strand );
 }
+
+sub change_strand {
+    my $strand = shift;
+
+    if ( $strand eq '+' ) {
+        return '-';
+    }
+    elsif ( $strand eq '-' ) {
+        return '+';
+    }
+    else {
+        return $strand;
+    }
+}
+
+#sub string_to_hashobj {
+#    my $node = shift;
+#
+#    my $set_of = {};
+#    my @chr_runlists = grep {defined} split /;/, $node;
+#    for my $chr_runlist (@chr_runlists) {
+#        my ( $chr_name, $runlist ) = split /:/, $chr_runlist;
+#        if ( !exists $set_of->{$chr_name} ) {
+#            $set_of->{$chr_name} = AlignDB::IntSpan->new;
+#        }
+#        $set_of->{$chr_name}->add($runlist);
+#    }
+#
+#    return $set_of;
+#}
 
 #sub hashobj_to_string {
 #    my $set_of = shift;
@@ -197,7 +234,6 @@ sub string_to_hashobj {
 #
 #    return $chr_name;
 #}
-
 
 __END__
 

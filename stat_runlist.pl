@@ -26,6 +26,8 @@ my $size_file;
 
 my $file;
 
+my $multi_key;    # file has multiple keys
+
 my $outfile;
 
 my $remove_chr;    # remove "chr" in "chr1"
@@ -38,6 +40,7 @@ GetOptions(
     'man'         => \$man,
     's|size=s'    => \$size_file,
     'f|file=s'    => \$file,
+    'mk'          => \$multi_key,
     'o|outfile=s' => \$outfile,
     'r|remove'    => \$remove_chr,
 ) or pod2usage(2);
@@ -55,45 +58,54 @@ if ( !$outfile ) {
 my $stopwatch = AlignDB::Stopwatch->new;
 $stopwatch->start_message("Compare runlist...");
 
+#----------------------------#
+# Loading
+#----------------------------#
 my $length_of = read_sizes( $size_file, $remove_chr );
 
-print "Loading...\n";
-my $set_of = {};
-{
-    print "Filename: $file\n";
-    my $runlist_of = LoadFile($file);
+print "Loading $file...\n";
+my $s_of = {};
+my @keys;
+if ($multi_key) {
+    my $yml = LoadFile($file);
+    @keys = sort keys %{$yml};
 
-    for my $key ( sort keys %{$runlist_of} ) {
-        my $set = AlignDB::IntSpan->new( $runlist_of->{$key} );
-        $key =~ s/chr0?// if $remove_chr;
-        printf "key:\t%s\tlength:\t%s\n", $key, $set->size;
-        $set_of->{$key} = $set;
+    for my $key (@keys) {
+        $s_of->{$key} = runlist2set( $yml->{$key}, $remove_chr );
     }
 }
-print "\n";
-
-open my $fh, '>', $outfile;
-print {$fh} "name,length,size,coverage\n";
-my ( $all_length, $all_size, $all_coverage );
-for my $key ( sort keys %{$set_of} ) {
-    print "For $key\n";
-
-    my $length   = $length_of->{$key};
-    my $size     = $set_of->{$key}->size;
-    my $coverage = $size / $length;
-
-    $all_length += $length;
-    $all_size   += $size;
-
-    print "$key,$length,$size,$coverage\n";
-    print {$fh} "$key,$length,$size,$coverage\n";
-
+else {
+    @keys = ("__single");
+    $s_of->{__single} = runlist2set( LoadFile($file), $remove_chr );
 }
 
-$all_coverage = $all_size / $all_length;
-print "all,$all_length,$all_size,$all_coverage\n";
-print {$fh} "all,$all_length,$all_size,$all_coverage\n";
-close $fh;
+#----------------------------#
+# Calcing
+#----------------------------#
+print "\nCalc and write to $outfile\n";
+
+if ($multi_key) {
+    my @lines;
+
+    for my $key (@keys) {
+        my @key_lines = csv_lines( $s_of->{$key}, $length_of );
+        $_ = "$key,$_" for @key_lines;
+        push @lines, @key_lines;
+    }
+
+    unshift @lines, "key,name,length,size,coverage\n";
+    open my $fh, '>', $outfile;
+    print {$fh} $_ for @lines;
+    close $fh;
+}
+else {
+    my @lines = csv_lines( $s_of->{__single}, $length_of );
+
+    unshift @lines, "name,length,size,coverage\n";
+    open my $fh, '>', $outfile;
+    print {$fh} $_ for @lines;
+    close $fh;
+}
 
 $stopwatch->end_message;
 
@@ -105,39 +117,53 @@ sub read_sizes {
     my %length_of;
     while (<$fh>) {
         chomp;
-        my ( $key, $value ) = split /\t/;
-        $key =~ s/chr0?// if $remove_chr;
-        $length_of{$key} = $value;
+        my ( $chr, $value ) = split /\t/;
+        $chr =~ s/chr0?// if $remove_chr;
+        $length_of{$chr} = $value;
     }
 
     return \%length_of;
 }
 
-sub read_bed {
-    my $file       = shift;
+sub runlist2set {
+    my $runlist_of = shift;
     my $remove_chr = shift;
-    my @data;
 
-    open my $fh, '<', $file;
-    while ( my $string = <$fh> ) {
-        next unless defined $string;
-        chomp $string;
-        my ( $chr, $start, $end )
-            = ( split /\t/, $string )[ 0, 1, 2 ];
-        next unless $chr =~ /^\w+$/;
-        $chr =~ s/chr0?//i if $remove_chr;
-        next unless $start =~ /^\d+$/;
-        next unless $end =~ /^\d+$/;
-        if ( $start > $end ) {
-            ( $start, $end ) = ( $end, $start );
-        }
-        next if $end - $start < 10;
-        my $set = AlignDB::IntSpan->new("$start-$end");
-        push @data, { chr => $chr, set => $set, };
+    my $set_of = {};
+
+    for my $chr ( sort keys %{$runlist_of} ) {
+        my $new_chr = $chr;
+        $new_chr =~ s/chr0?// if $remove_chr;
+        my $set = AlignDB::IntSpan->new( $runlist_of->{$chr} );
+        printf "\tkey:\t%s\tlength:\t%s\n", $new_chr, $set->size;
+        $set_of->{$new_chr} = $set;
     }
-    close $fh;
 
-    return \@data;
+    return $set_of;
+}
+
+sub csv_lines {
+    my $set_of    = shift;
+    my $length_of = shift;
+
+    my @lines;
+
+    my ( $all_length, $all_size, $all_coverage );
+    for my $chr ( sort keys %{$set_of} ) {
+        my $length   = $length_of->{$chr};
+        my $size     = $set_of->{$chr}->size;
+        my $coverage = $size / $length;
+
+        $all_length += $length;
+        $all_size   += $size;
+
+        push @lines, "$chr,$length,$size,$coverage\n";
+    }
+
+    $all_coverage = $all_size / $all_length;
+    push @lines, "all,$all_length,$all_size,$all_coverage\n";
+
+    return @lines;
 }
 
 __END__

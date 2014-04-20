@@ -9,7 +9,6 @@ use YAML::Syck qw(Dump Load DumpFile LoadFile);
 
 use File::Find::Rule;
 use File::Basename;
-use IO::Zlib;
 use Graph;
 
 use AlignDB::IntSpan;
@@ -25,6 +24,8 @@ my $output;        # Graph yml dump
 
 my $merge_file;    # merged nodes, hashref
 
+my $nonself;       # skip self match, even for palindrome
+
 my $verbose;
 
 my $man  = 0;
@@ -37,6 +38,7 @@ GetOptions(
     'g|graph=s'  => \$graph_file,
     'o|output=s' => \$output,
     'm|merge=s'  => \$merge_file,
+    'n|nonself'  => \$nonself,
     'v|verbose'  => \$verbose,
 ) or pod2usage(2);
 
@@ -71,17 +73,18 @@ if ($merge_file) {
     $merged_of = LoadFile($merge_file);
 }
 
-# nodes are in "chr1:50-100" form, and with an attribute of intspan object
+# nodes are in "chr1:50-100" or "chr1(+):50-100" form, and with an attribute of intspan object
 for my $file (@files) {
     open my $in_fh, "<", $file;
-    while ( my $line = <$in_fh> ) {
+LINE: while ( my $line = <$in_fh> ) {
+        print "\n";
         chomp $line;
 
         my (@nodes) = ( split /\t/, $line )[ 0, 1 ];
         my ($hit_strand) = ( split /\t/, $line )[2];
-        for my $node (@nodes) {
 
-            # convert to merged node
+        # convert to merged node
+        for my $node (@nodes) {
             if ( exists $merged_of->{$node} ) {
                 printf "%s => %s\n", $node, $merged_of->{$node}{node}
                     if $verbose;
@@ -90,26 +93,36 @@ for my $file (@files) {
                     $hit_strand = change_strand($hit_strand);
                 }
             }
+        }
 
-            # add node
+        if ($nonself) {
+            if ( $nodes[0] eq $nodes[1] ) {
+                print " " x 4, "Same node, next\n" if $verbose;
+                next LINE;
+            }
+        }
+
+        # add node
+        for my $node (@nodes) {
             if ( !$g->has_vertex($node) ) {
                 $g->add_vertex($node);
-                my ( $chr, $set, $strand ) = string_to_set($node);
-                $g->set_vertex_attribute( $node, "chr",    $chr );
-                $g->set_vertex_attribute( $node, "set",    $set );
-                $g->set_vertex_attribute( $node, "strand", $strand );
                 print "Add node $node\n";
             }
         }
 
         # add edge
-        $g->add_edge(@nodes);
-        $g->set_edge_attribute( @nodes, "strand", $hit_strand );
+        if ( !$g->has_edge(@nodes) ) {
+            $g->add_edge(@nodes);
+            $g->set_edge_attribute( @nodes, "strand", $hit_strand );
 
-        print join "\t", @nodes, "\n" if $verbose;
-        printf "Nodes %d \t Edges %d\n\n", scalar $g->vertices,
-            scalar $g->edges
-            if $verbose;
+            print join "\t", @nodes, "\n" if $verbose;
+            printf "Nodes %d \t Edges %d\n", scalar $g->vertices,
+                scalar $g->edges
+                if $verbose;
+        }
+        else {
+            print " " x 4, "Edge exists, next\n" if $verbose;
+        }
     }
     $stopwatch->block_message("Finish processing [$file]");
 }
@@ -240,11 +253,11 @@ __END__
 
 =head1 NAME
 
-    gather_info_axt.pl - 
+    paralog_graph.pl - 
 
 =head1 SYNOPSIS
 
-    gather_info_axt.pl [options]
+    paralog_graph.pl [options]
       Options:
         --help              brief help message
         --man               full documentation

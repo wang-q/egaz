@@ -23,8 +23,6 @@ my $gzip;    # open .gz
 
 my $avoid_regex;    # '(random|hap|Un|M)';
 
-my $nomatch;        # no .match.tsv and .paralog.fasta
-
 my $output;
 
 my $man  = 0;
@@ -37,7 +35,6 @@ GetOptions(
     'l|length=s' => \$length,
     'g|gzip'     => \$gzip,
     'r|regex=s'  => \$avoid_regex,
-    'n|nomatch'  => \$nomatch,
     'o|output=s' => \$output,
 ) or pod2usage(2);
 
@@ -72,16 +69,7 @@ if ( scalar @files == 0 or $gzip ) {
 #----------------------------------------------------------#
 # Start
 #----------------------------------------------------------#
-my $covered = {
-    0 => {},
-    1 => {},
-};
-
-my ( $tsv_fh, $fasta_fh );
-if ( !$nomatch ) {
-    open $tsv_fh,   ">", "$output.match.tsv";
-    open $fasta_fh, ">", "$output.paralog.fasta";
-}
+open my $fasta_fh, ">", "$output.axt.fasta";
 for my $file (@files) {
     $stopwatch->block_message("Analysis [$file]");
     my $data = parse_axt( $file, 1 );
@@ -99,42 +87,21 @@ for my $file (@files) {
             my $chr_start  = $info_ref->[$i]{chr_start};
             my $chr_end    = $info_ref->[$i]{chr_end};
 
-            # whole runlists
-            if ( !exists $covered->{$i}{$chr_name} ) {
-                $covered->{$i}{$chr_name} = AlignDB::IntSpan->new;
+            # piece name
+            my $head = "$chr_name:$chr_start-$chr_end";
+
+            my $seq = $info_ref->[$i]{seq};
+            $seq =~ tr/-//d;
+            $seq = uc $seq;
+            if ($chr_strand ne "+") {
+                $seq = revcom($seq);
             }
-            $covered->{$i}{$chr_name}->add_range( $chr_start, $chr_end );
-
-            if ( !$nomatch ) {
-
-                # piece runlist
-                my $runlist = "$chr_name($chr_strand):$chr_start-$chr_end";
-                print {$tsv_fh} "$runlist\t";
-
-                my $seq = $info_ref->[$i]{seq};
-                $seq =~ tr/-//d;
-                $seq = uc $seq;
-                print {$fasta_fh} ">$runlist\n";
-                print {$fasta_fh} "$seq\n";
-            }
-        }
-
-        if ( !$nomatch ) {
-            print {$tsv_fh} "+\n";
+            print {$fasta_fh} ">$head\n";
+            print {$fasta_fh} "$seq\n";
         }
     }
 }
-if ( !$nomatch ) {
-    close $tsv_fh;
-    close $fasta_fh;
-}
-
-for my $i ( 0, 1 ) {
-    for my $key ( keys %{ $covered->{$i} } ) {
-        $covered->{$i}{$key} = $covered->{$i}{$key}->runlist;
-    }
-    DumpFile( "$output.runlist.$i.yml", $covered->{$i} );
-}
+close $fasta_fh;
 
 $stopwatch->end_message;
 exit;

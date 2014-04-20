@@ -23,7 +23,7 @@ my @files;
 
 my $output;
 
-my $ratio_cover = 0.95;    # When larger than this ratio, merge runlists
+my $coverage = 0.9;    # When larger than this ratio, merge runlists
 
 my $verbose;
 
@@ -35,7 +35,7 @@ GetOptions(
     'man'        => \$man,
     'f|files=s'  => \@files,
     'o|output=s' => \$output,
-    'r|ratio=s'  => \$ratio_cover,
+    'c|coverage=s'  => \$coverage,
     'v|verbose'  => \$verbose,
 ) or pod2usage(2);
 
@@ -110,8 +110,8 @@ for my $chr ( sort keys %chrs ) {
             if ( $i_set->is_not_empty ) {
                 my $coverage_i = $i_set->size / $set_i->size;
                 my $coverage_j = $i_set->size / $set_j->size;
-                if (    $coverage_i >= $ratio_cover
-                    and $coverage_j >= $ratio_cover )
+                if (    $coverage_i >= $coverage
+                    and $coverage_j >= $coverage )
                 {
                     $g->add_edge( $nodes[$i], $nodes[$j] );
                     print " " x 8,
@@ -134,6 +134,7 @@ my $merged_of = {};
     @cc = grep { scalar @{$_} > 1 } @cc;
 
     for my $c (@cc) {
+        print "\n";
         my $chr = $g->get_vertex_attribute( $c->[0], "chr" );
         my $merge_set = AlignDB::IntSpan->new;
         my @strands;
@@ -157,17 +158,15 @@ my $merged_of = {};
         my $merge_node = "$chr($strand):" . $merge_set->runlist;
 
         for my $node ( @{$c} ) {
+            my $node_change = 0;
             if ($change) {
                 $node =~ /\(.\)/;
                 my $node_strand = $1;
                 if ( $node_strand ne $strand ) {
-                    $change = 1;
-                }
-                else {
-                    $change = 0;
+                    $node_change = 1;
                 }
             }
-            $merged_of->{$node} = { node => $merge_node, change => $change };
+            $merged_of->{$node} = { node => $merge_node, change => $node_change };
             print "$node => $merge_node\n";
         }
     }

@@ -10,24 +10,20 @@ use YAML qw(Dump Load DumpFile LoadFile);
 
 use File::Basename;
 use Bio::SearchIO;
+use Set::Scalar;
 
 use AlignDB::IntSpan;
 use AlignDB::Stopwatch;
 
 use FindBin;
-use lib "$FindBin::Bin/../lib";
 
 #----------------------------------------------------------#
 # GetOpt section
 #----------------------------------------------------------#
-my $Config = Config::Tiny->new;
-$Config = Config::Tiny->read("$FindBin::Bin/../alignDB.ini");
-
 # record ARGV and Config
 my $stopwatch = AlignDB::Stopwatch->new(
     program_name => $0,
     program_argv => [@ARGV],
-    program_conf => $Config,
 );
 
 my $file;
@@ -71,40 +67,34 @@ $stopwatch->start_message("Find paralog...");
 if ( !$output ) {
     $output = basename($file);
     ($output) = grep {defined} split /\./, $output;
-    $output = "$output.blast.tsv";
+    $output = "$output.gl.fasta";
 }
 
 #----------------------------------------------------------#
-# start update
+# load blast reports
 #----------------------------------------------------------#
-open my $out_fh,   ">", $output;
+print "load blast reports\n";
 open my $blast_fh, '<', $file;
+
+my %seq_of;    # store sequences of genome locations
 
 my $searchio = Bio::SearchIO->new(
     -format => $result_format,
     -fh     => $blast_fh,
 );
 
-while ( my $result = $searchio->next_result ) {
+QUERY: while ( my $result = $searchio->next_result ) {
     my $query_name   = $result->query_name;
     my $query_length = $result->query_length;
-    print "name $query_name\tlength $query_length\n";
+    print " " x 4, "name: $query_name\tlength: $query_length\n";
     while ( my $hit = $result->next_hit ) {
         my $hit_name = $hit->name;
-        next if $query_name eq $hit_name;
 
-        my $hit_length = $hit->length;
-        next if $hit_length < 100;
-        my $query_set     = AlignDB::IntSpan->new;
-        my $hit_set       = AlignDB::IntSpan->new;
-        my $hit_set_plus  = AlignDB::IntSpan->new;
-        my $hit_set_minus = AlignDB::IntSpan->new;
         while ( my $hsp = $hit->next_hsp ) {
+            my $query_set = AlignDB::IntSpan->new;
 
             # process the Bio::Search::HSP::HSPI object
             my $hsp_length = $hsp->length( ['query'] );
-            my $hsp_identity = $hsp->percent_identity;
-            next if $hsp_identity < $identity;
 
             # use "+" for default strand
             # -1 = Minus strand, +1 = Plus strand
@@ -130,39 +120,119 @@ while ( my $result = $searchio->next_result ) {
             if ( $h_start > $h_end ) {
                 ( $h_start, $h_end ) = ( $h_end, $h_start );
             }
-            $hit_set->add_range( $h_start, $h_end );
 
-            if ( $hsp_strand eq "+" ) {
-                $hit_set_plus->add_range( $h_start, $h_end );
-            }
-            elsif ( $hsp_strand eq "-" ) {
-                $hit_set_minus->add_range( $h_start, $h_end );
+            my $query_coverage = $query_set->size / $query_length;
+            my $hsp_identity   = $hsp->percent_identity;
+
+            if ( $query_coverage >= $coverage and $hsp_identity >= $identity ) {
+                my $head = "$hit_name(+):$h_start-$h_end";
+                if ( !exists $seq_of{$head} ) {
+                    my $seq = $hit_obj->seq;
+                    $seq =~ tr/-//d;
+                    $seq = uc $seq;
+                    if ( $hsp_strand ne "+" ) {
+                        $seq = revcom($seq);
+                    }
+                    $seq_of{$head} = $seq;
+                }
             }
         }
-        my $query_coverage = $query_set->size / $query_length;
-        my $hit_coverage   = $hit_set->size / $hit_length;
-        next if $query_coverage < $coverage;
-        next if $hit_coverage < $coverage;
-
-        next if $query_name eq $hit_name;
-        my $strand = "+";
-        if ( $hit_set_plus->size < $hit_set_minus->size ) {
-            print " " x 4, "Hit on revere strand\n";
-            $strand = "-";
-        }
-        print {$out_fh} join "\t", $query_name, $hit_name, $strand,
-            $query_length,
-            $query_coverage, $query_set->runlist, $hit_length,
-            $hit_coverage, $hit_set->runlist;
-        print {$out_fh} "\n";
     }
 }
-close $out_fh;
+
 close $blast_fh;
+
+#----------------------------------------------------------#
+# write fasta
+#----------------------------------------------------------#
+{
+    #----------------------------#
+    # remove locations fully contained by others
+    #----------------------------#
+    print "Merge nested locations\n";
+    my %chrs;
+    my %set_of;
+    for my $node ( keys %seq_of ) {
+        my ( $chr, $set, $strand ) = string_to_set($node);
+        $chrs{$chr}++;
+        $set_of{$node} = { chr => $chr, set => $set };
+    }
+
+    my $to_remove = Set::Scalar->new;
+    for my $chr ( sort keys %chrs ) {
+        my @nodes = sort grep { $set_of{$_}->{chr} eq $chr } keys %seq_of;
+
+        for my $i ( 0 .. $#nodes ) {
+            my $node_i = $nodes[$i];
+            my $set_i  = $set_of{$node_i}->{set};
+            for my $j ( $i + 1 .. $#nodes ) {
+                my $node_j = $nodes[$j];
+                my $set_j  = $set_of{$node_j}->{set};
+
+                if ( $set_i->larger_than($set_j) ) {
+                    $to_remove->insert($node_j);
+                }
+                elsif ( $set_j->larger_than($set_i) ) {
+                    $to_remove->insert($node_i);
+                }
+            }
+        }
+    }
+
+    #----------------------------#
+    # sort heads
+    #----------------------------#
+    print "Sort locations\n";
+    my @sorted = map { $to_remove->has($_) ? () : $_ } keys %seq_of;
+
+    # start point on chromosomes
+    @sorted = map { $_->[0] }
+        sort { $a->[1] <=> $b->[1] }
+        map { /[\w.]+\(.\)\:(\d+)/; [ $_, $1 ] } @sorted;
+
+    # chromosome name
+    @sorted = map { $_->[0] }
+        sort { $a->[1] cmp $b->[1] }
+        map { /([\w.]+)\(.\)\:/; [ $_, $1 ] } @sorted;
+
+    print "Write outputs\n";
+    open my $out_fh, ">", $output;
+    for my $head (@sorted) {
+        print {$out_fh} ">$head\n";
+        print {$out_fh} $seq_of{$head}, "\n";
+    }
+    close $out_fh;
+}
 
 $stopwatch->end_message;
 
 exit;
+
+#----------------------------------------------------------#
+# Subroutines
+#----------------------------------------------------------#
+sub string_to_set {
+    my $node = shift;
+
+    my ( $chr, $runlist ) = split /:/, $node;
+    my $strand = "+";
+    if ( $chr =~ /\((.+)\)/ ) {
+        $strand = $1;
+        $chr =~ s/\(.+\)//;
+    }
+    my $set = AlignDB::IntSpan->new($runlist);
+
+    return ( $chr, $set, $strand );
+}
+
+sub revcom {
+    my $seq = shift;
+
+    $seq =~ tr/ACGTMRWSYKVHDBNacgtmrwsykvhdbn-/TGCAKYWSRMBDHVNtgcakyswrmbdhvn-/;
+    my $seq_rc = reverse $seq;
+
+    return $seq_rc;
+}
 
 __END__
 

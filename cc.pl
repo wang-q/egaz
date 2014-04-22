@@ -1,19 +1,15 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use autodie;
 
 use Getopt::Long;
 use Pod::Usage;
 use Config::Tiny;
 use YAML::Syck qw(Dump Load DumpFile LoadFile);
 
-use File::Find::Rule;
-use File::Basename;
-use File::Spec;
-use Path::Class;
+use Path::Tiny;
 use Graph;
-use List::Util qw(sum0);
-use Set::Scalar;
 
 use FindBin;
 
@@ -24,12 +20,8 @@ use AlignDB::Stopwatch;
 # GetOpt section
 #----------------------------------------------------------#
 my $file;
-my $size_file;
 
 my $output;
-my $outdir;
-
-my $verbose;
 
 my $man  = 0;
 my $help = 0;
@@ -39,7 +31,6 @@ GetOptions(
     'man'        => \$man,
     'f|file=s'   => \$file,
     'o|output=s' => \$output,
-    'v|verbose'  => \$verbose,
 ) or pod2usage(2);
 
 pod2usage(1) if $help;
@@ -52,7 +43,7 @@ my $stopwatch = AlignDB::Stopwatch->new;
 $stopwatch->start_message("Analysis [$file]");
 
 if ( !$output ) {
-    $output = basename($file);
+    $output = path($file)->basename;
 
     ($output) = grep {defined} split /\./, $output;
 }

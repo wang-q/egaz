@@ -1,26 +1,21 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use autodie;
 
 use Getopt::Long;
 use Pod::Usage;
 use Config::Tiny;
 use YAML::Syck qw(Dump Load DumpFile LoadFile);
 
-use File::Find::Rule;
-use File::Basename;
-use File::Spec;
-use Path::Class;
-use Graph;
+use Path::Tiny;
 use List::Util qw(sum0);
-use List::MoreUtils qw(zip);
 
 use Bio::SeqIO;
 
-use FindBin;
-
 use AlignDB::IntSpan;
 use AlignDB::Stopwatch;
+use AlignDB::Util qw(:all);
 
 #----------------------------------------------------------#
 # GetOpt section
@@ -32,22 +27,16 @@ my $output;
 
 my $low_cut = 4;    # low copies their own stats
 
-my $write_seq;
-
-my $verbose;
-
 my $man  = 0;
 my $help = 0;
 
 GetOptions(
-    'help|?'      => \$help,
-    'man'         => \$man,
-    'f|file=s'    => \$cc_file,
-    's|size=s'    => \$size_file,
-    'o|output=s'  => \$output,
-    'l|low=s'     => \$low_cut,
-    'w|write_seq' => \$write_seq,
-    'v|verbose'   => \$verbose,
+    'help|?'     => \$help,
+    'man'        => \$man,
+    'f|file=s'   => \$cc_file,
+    's|size=s'   => \$size_file,
+    'o|output=s' => \$output,
+    'l|low=s'    => \$low_cut,
 ) or pod2usage(2);
 
 pod2usage(1) if $help;
@@ -60,7 +49,7 @@ my $stopwatch = AlignDB::Stopwatch->new;
 $stopwatch->start_message("Analysis [$cc_file]");
 
 if ( !$output ) {
-    $output = basename($cc_file);
+    $output = path($cc_file)->basename;
 
     ($output) = grep {defined} split /\./, $output;
     $output = "$output.cc";
@@ -83,6 +72,8 @@ my $runlist_of = $yml->{runlist};
 # coverage
 #----------------------------#
 if ($size_file) {
+    print "Write covered runlist and csv files\n";
+
     my $length_of        = read_sizes($size_file);
     my $length_of_genome = sum0( values %{$length_of} );
     my @chrs             = sort keys %{$length_of};
@@ -188,12 +179,15 @@ if ($size_file) {
             "\n";
     }
     close $fh;
+    print "\n";
 }
 
 #----------------------------#
-# write circos link file
+# write circos link files
 #----------------------------#
 {
+    print "Write circos link files\n";
+
     # linkN is actually hightlight file
     my $link_fh_of = {};
     for ( 2 .. $low_cut, 'N' ) {
@@ -241,93 +235,11 @@ if ($size_file) {
     }
 
     close $link_fh_of->{$_} for ( 2 .. $low_cut, 'N' );
-}
-
-#----------------------------#
-# write piece sequences
-#----------------------------#
-if ( $size_file and $write_seq ) {
-    my @chrs = sort keys %{ read_sizes($size_file) };
-
-    my %file_of
-        = map { $_ => file($size_file)->dir->file( $_ . ".fa" )->stringify }
-        @chrs;
-    my %seq_obj_of = map {
-        $_ => Bio::SeqIO->new( -file => $file_of{$_}, -format => 'Fasta' )
-            ->next_seq
-    } @chrs;
-
-    my $seq_fh_of = {};
-    my @copies = grep { $_ >= 2 } sort { $a <=> $b } keys %{$count_of};
-    for (@copies) {
-        open my $fh, ">", "$output.copy$_.fas";
-        $seq_fh_of->{$_} = $fh;
-    }
-
-    for my $c (@cc) {
-        my $copy = scalar @{$c};
-        next if $copy < 2;
-
-        my @heads = @{$c};
-        for my $head ( @{$c} ) {
-            my ( $chr, $set, $strand ) = string_to_set($head);
-            my $seq = $seq_obj_of{$chr}->subseq( $set->min, $set->max );
-            $seq = uc $seq;
-            if ( $strand ne "+" ) {
-                $seq = revcom($seq);
-            }
-
-            print { $seq_fh_of->{$copy} } ">$head\n";
-            print { $seq_fh_of->{$copy} } "$seq\n";
-        }
-        print { $seq_fh_of->{$copy} } "\n";
-    }
-
-    close $seq_fh_of->{$_} for (@copies);
-
+    print "\n";
 }
 
 $stopwatch->end_message;
 exit;
-
-sub read_sizes {
-    my $file       = shift;
-    my $remove_chr = shift;
-
-    my $fh = file($file)->openr;
-    my %length_of;
-    while (<$fh>) {
-        chomp;
-        my ( $key, $value ) = split /\t/;
-        $key =~ s/chr0?// if $remove_chr;
-        $length_of{$key} = $value;
-    }
-
-    return \%length_of;
-}
-
-sub string_to_set {
-    my $node = shift;
-
-    my ( $chr, $runlist ) = split /:/, $node;
-    my $strand = "+";
-    if ( $chr =~ /\((.+)\)/ ) {
-        $strand = $1;
-        $chr =~ s/\(.+\)//;
-    }
-    my $set = AlignDB::IntSpan->new($runlist);
-
-    return ( $chr, $set, $strand );
-}
-
-sub revcom {
-    my $seq = shift;
-
-    $seq =~ tr/ACGTMRWSYKVHDBNacgtmrwsykvhdbn-/TGCAKYWSRMBDHVNtgcakyswrmbdhvn-/;
-    my $seq_rc = reverse $seq;
-
-    return $seq_rc;
-}
 
 __END__
 

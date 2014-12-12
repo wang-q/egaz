@@ -357,8 +357,12 @@ for ( $dir_net, $dir_axtnet ) {
     chdir $dir_lav;
     my $cmd;
 
-    $cmd = "tar -czvf lav.tar.gz [*.lav --remove-files";
-    exec_cmd($cmd) if !-e "$dir_lav/lav.tar.gz";
+    $cmd = "tar -czvf lav.tar.gz [*.lav"
+        ;    # bsdtar (mac) doesn't support  --remove-files
+    if ( !-e "$dir_lav/lav.tar.gz" ) {
+        exec_cmd($cmd);
+        remove("[*.lav");
+    }
 
     remove( \1, "$dir_lav/net" );
     remove("[*.psl");

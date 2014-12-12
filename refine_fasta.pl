@@ -350,9 +350,9 @@ sub trim_hf {
 # trim outgroup only sequence
 #----------------------------#
 # if intersect is superset of union
-#   ref    GAAAAC
 #   target G----C
 #   query  G----C
+#   ref    GAAAAC
 sub trim_outgroup {
     my $seq_of    = shift;
     my $seq_names = shift;
@@ -399,9 +399,9 @@ sub trim_outgroup {
 # record complex indels and ingroup indels
 #----------------------------#
 # if intersect is subset of union
-#   ref GGAGAC
 #   tar GGA--C
 #   que G----C
+#   ref GGAGAC
 sub trim_complex_indel {
     my $seq_of    = shift;
     my $seq_names = shift;

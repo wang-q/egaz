@@ -1,13 +1,11 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use autodie;
 
 use Getopt::Long;
 use Pod::Usage;
 use YAML qw(Dump Load DumpFile LoadFile);
-
-use AlignDB::Run;
-use AlignDB::Util qw(:all);
 
 use Bio::Phylo::IO qw(parse);
 use Set::Scalar;
@@ -24,6 +22,10 @@ use File::Spec;
 use File::Basename;
 use File::Remove qw(remove);
 use File::Copy::Recursive qw(fcopy);
+
+use MCE;
+
+use AlignDB::Util qw(:all);
 
 use FindBin;
 
@@ -260,9 +262,9 @@ my @chr_names;
 #----------------------------#
 
 my $worker = sub {
-    my $job = shift;
+    my ( $self, $chunk_ref, $chunk_id ) = @_;
 
-    my $chr_name = $job;
+    my $chr_name = $chunk_ref->[0];
 
 # multiz.v11.2: -- aligning two files of alignment blocks where top rows are
 # always the reference, reference in both files cannot have duplicats
@@ -353,12 +355,8 @@ my $worker = sub {
     return;
 };
 
-my $run = AlignDB::Run->new(
-    parallel => $parallel,
-    jobs     => \@chr_names,
-    code     => $worker,
-);
-$run->run;
+my $mce = MCE->new( chunk_size => 1, max_workers => $parallel, );
+$mce->foreach( \@chr_names, $worker );
 
 {    # summary
     my $cmd = "echo -e 'step,spe1,spe2,maf1,maf2,out1,out2,size,per_size'"
@@ -407,21 +405,17 @@ sub decompress_gzip {
     print "maf files is gzipped, multiz can't handle them.\n";
     print "Decompress...\n";
 
-    my $worker = sub {
-        my $job  = shift;
-        my $file = $job;
-        my $cmd  = "gzip -d $file";
-        exec_cmd($cmd);
-        return;
-    };
+    my $mce = MCE->new( chunk_size => 1, max_workers => $parallel, );
+    $mce->foreach(
+        [ sort @files ],
+        sub {
+            my ( $self, $chunk_ref, $chunk_id ) = @_;
 
-    my @jobs = sort @files;
-    my $run  = AlignDB::Run->new(
-        parallel => $parallel,
-        jobs     => \@jobs,
-        code     => $worker,
+            my $file = $chunk_ref->[0];
+            my $cmd  = "gzip -d $file";
+            exec_cmd($cmd);
+        }
     );
-    $run->run;
 }
 
 sub compress_gzip {
@@ -430,21 +424,17 @@ sub compress_gzip {
     print "Restore compressed state of maf files.\n";
     print "Compress...\n";
 
-    my $worker = sub {
-        my $job  = shift;
-        my $file = $job;
-        my $cmd  = "gzip $file";
-        exec_cmd($cmd);
-        return;
-    };
+    my $mce = MCE->new( chunk_size => 1, max_workers => $parallel, );
+    $mce->foreach(
+        [ sort @files ],
+        sub {
+            my ( $self, $chunk_ref, $chunk_id ) = @_;
 
-    my @jobs = sort @files;
-    my $run  = AlignDB::Run->new(
-        parallel => $parallel,
-        jobs     => \@jobs,
-        code     => $worker,
+            my $file = $chunk_ref->[0];
+            my $cmd  = "gzip $file";
+            exec_cmd($cmd);
+        }
     );
-    $run->run;
 }
 
 #----------------------------#

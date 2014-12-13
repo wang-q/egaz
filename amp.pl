@@ -7,9 +7,6 @@ use Getopt::Long;
 use Pod::Usage;
 use YAML qw(Dump Load DumpFile LoadFile);
 
-use AlignDB::Run;
-use AlignDB::Util qw(:all);
-
 use Time::Duration;
 use File::Find::Rule;
 use File::Spec;
@@ -17,6 +14,10 @@ use File::Basename;
 use File::Remove qw(remove);
 use Path::Class;
 use String::Compare;
+
+use MCE;
+
+use AlignDB::Util qw(:all);
 
 use FindBin;
 
@@ -88,10 +89,9 @@ if ( !$syn ) {
     printf "\n----%4s .axt files to be converted ----\n", scalar @files;
 
     my $worker = sub {
-        my $job = shift;
-        my $opt = shift;
+        my ( $self, $chunk_ref, $chunk_id ) = @_;
 
-        my $file = $job;
+        my $file = $chunk_ref->[0];
         my $output = basename( $file, ".axt", ".axt.gz" );
         $output = File::Spec->catfile( $dir_mafnet, "$output.maf" );
 
@@ -109,7 +109,6 @@ if ( !$syn ) {
         #             In this case in.maf must be sorted by target.
         #     -score       - recalculate score
         #     -scoreZero   - recalculate score if zero
-
         print "Run axtToMaf...\n";
         my $cmd
             = "$kent_bin/axtToMaf"
@@ -121,17 +120,10 @@ if ( !$syn ) {
             . " $output";
         exec_cmd($cmd);
         print ".maf file generated.\n\n";
-
-        return;
     };
 
-    my @jobs = sort @files;
-    my $run  = AlignDB::Run->new(
-        parallel => $parallel,
-        jobs     => \@jobs,
-        code     => $worker,
-    );
-    $run->run;
+    my $mce = MCE->new( chunk_size => 1, max_workers => $parallel, );
+    $mce->foreach( [ sort @files ], $worker );
 
     print "\n";
 }
@@ -187,17 +179,16 @@ else {
     printf "\n----%4s .net files to be converted ----\n", scalar @files;
 
     my $worker = sub {
-        my $job = shift;
-        my $opt = shift;
+        my ( $self, $chunk_ref, $chunk_id ) = @_;
 
-        my $file   = $job;
+        my $file   = $chunk_ref->[0];
         my $base   = basename( $file, ".net" );
         my $output = File::Spec->catfile( $dir_mafsynnet, "$base.synNet.maf" );
         my $chain_file = File::Spec->catfile( $dir_chain, "$base.chain" );
 
         print "Run netToAxt axtSort axtToMaf...\n";
         my $cmd
-            = "$kent_bin/netToAxt" 
+            = "$kent_bin/netToAxt"
             . " $file"
             . " $chain_file"
             . " $dir_target/chr.2bit"
@@ -217,13 +208,8 @@ else {
         return;
     };
 
-    my @jobs = sort @files;
-    my $run  = AlignDB::Run->new(
-        parallel => $parallel,
-        jobs     => \@jobs,
-        code     => $worker,
-    );
-    $run->run;
+    my $mce = MCE->new( chunk_size => 1, max_workers => $parallel, );
+    $mce->foreach( [ sort @files ], $worker );
 
     print "\n";
 }
@@ -238,23 +224,17 @@ else {
     my @files = File::Find::Rule->file->name('*.maf')->in("$dir_lav");
     printf "\n----%4s .maf files to be converted ----\n", scalar @files;
 
-    my $worker = sub {
-        my $job = shift;
+    my $mce = MCE->new( chunk_size => 1, max_workers => $parallel, );
+    $mce->foreach(
+        [ sort @files ],
+        sub {
+            my ( $self, $chunk_ref, $chunk_id ) = @_;
 
-        my $file = $job;
-        my $cmd  = "gzip $file";
-        exec_cmd($cmd);
-
-        return;
-    };
-
-    my @jobs = sort @files;
-    my $run  = AlignDB::Run->new(
-        parallel => $parallel,
-        jobs     => \@jobs,
-        code     => $worker,
+            my $file = $chunk_ref->[0];
+            my $cmd = "gzip $file";
+            exec_cmd($cmd);
+        }
     );
-    $run->run;
 }
 
 print "\n";

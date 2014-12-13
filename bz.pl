@@ -1,19 +1,21 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use autodie;
 
 use Getopt::Long;
 use Pod::Usage;
 use YAML qw(Dump Load DumpFile LoadFile);
-
-use AlignDB::Run;
-use AlignDB::Util qw(:all);
 
 use Time::Duration;
 use File::Find::Rule;
 use File::Basename;
 use Path::Class;
 use String::Compare;
+
+use MCE;
+
+use AlignDB::Util qw(:all);
 
 use FindBin;
 
@@ -169,8 +171,9 @@ printf "\n----%4s .fa files for query----\n",  scalar @query_files;
 #----------------------------------------------------------#
 {
     my $worker = sub {
-        my $job = shift;
-        my $opt = shift;
+        my ( $self, $chunk_ref, $chunk_id ) = @_;
+
+        my $job = $chunk_ref->[0];
 
         my ( $target, $query ) = split /\|/, $job;
 
@@ -199,8 +202,8 @@ printf "\n----%4s .fa files for query----\n",  scalar @query_files;
             $bz_cmd = "$path_blastz $target --self";
         }
 
-        for my $key ( keys %{$opt} ) {
-            my $value = $opt->{$key};
+        for my $key ( keys %opt ) {
+            my $value = $opt{$key};
             if ( defined $value ) {
                 $bz_cmd .= " $key=$value";
             }
@@ -238,13 +241,8 @@ printf "\n----%4s .fa files for query----\n",  scalar @query_files;
     print "\n", "=" x 30, "\n";
     print "Processing...\n";
 
-    my $run = AlignDB::Run->new(
-        parallel => $parallel,
-        jobs     => \@jobs,
-        code     => $worker,
-        opt      => \%opt,
-    );
-    $run->run;
+    my $mce = MCE->new( chunk_size => 1, max_workers => $parallel, );
+    $mce->foreach( \@jobs, $worker );
 
     print "\n";
     print "Runtime ", duration( time - $start_time ), ".\n";
@@ -260,10 +258,10 @@ if ( $t_parted or $q_parted ) {
 
     my ( %t_length, %q_length );
     if ($t_parted) {
-        %t_length = read_sizes( $dir_target, 'chr.sizes' );
+        %t_length = %{ read_sizes( $dir_target, 'chr.sizes' ) };
     }
     if ($q_parted) {
-        %q_length = read_sizes( $dir_query, 'chr.sizes' );
+        %q_length = %{ read_sizes( $dir_query, 'chr.sizes' ) };
     }
 
     for my $file (@lav_files) {
@@ -314,18 +312,24 @@ if ( !$noaxt ) {
         return;
     };
 
-    my @jobs = sort @lav_files;
-
     my $start_time = time;
     print "\n", "=" x 30, "\n";
     print "Processing...\n";
 
-    my $run = AlignDB::Run->new(
-        parallel => $parallel,
-        jobs     => \@jobs,
-        code     => $worker,
+    my $mce = MCE->new( chunk_size => 1, max_workers => $parallel, );
+    $mce->foreach(
+        [ sort @lav_files ],
+        sub {
+            my ( $self, $chunk_ref, $chunk_id ) = @_;
+
+            my $file = $chunk_ref->[0];
+
+            print "Run lav2axt...\n";
+            my $cmd = "$path_lav2axt -l $file ";
+            exec_cmd($cmd);
+            print ".axt file generated.\n\n";
+        }
     );
-    $run->run;
 
     print "\n";
     print "Runtime ", duration( time - $start_time ), ".\n";
@@ -342,18 +346,6 @@ sub exec_cmd {
     print "-" x 30, "\n";
 
     system $cmd;
-}
-
-sub read_sizes {
-    my $fh = file(@_)->openr;
-    my %length_of;
-    while (<$fh>) {
-        chomp;
-        my ( $key, $value ) = split /\t/;
-        $length_of{$key} = $value;
-    }
-
-    return %length_of;
 }
 
 __END__

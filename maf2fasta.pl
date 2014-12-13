@@ -12,37 +12,38 @@ use File::Find::Rule;
 use File::Basename;
 use IO::Zlib;
 
+use MCE;
+
 use AlignDB::Stopwatch;
 use AlignDB::Util qw(:all);
-use AlignDB::Run;
 
 #----------------------------------------------------------#
 # GetOpt section
 #----------------------------------------------------------#
 my $in_dir = '.';    # Specify location here
 my $out_dir;         # Specify output dir here
-my $length_threshold = 1000;    # Set the threshold of alignment length
-my $subset;          # get sequences of listed names, seperated by comma
-my $block;           # write galaxy style blocked fasta
+my $length_threshold = 1000; # Set the threshold of alignment length
+my $subset;                  # get sequences of listed names, seperated by comma
+my $block;                   # write galaxy style blocked fasta
 
 # run in parallel mode
 my $parallel = 1;
 
-my $gzip;            # open .maf.gz
+my $gzip;                    # open .maf.gz
 
 my $man  = 0;
 my $help = 0;
 
 GetOptions(
-    'help|?'       => \$help,
-    'man'          => \$man,
-    'i|in_dir=s'   => \$in_dir,
-    'o|out_dir=s'  => \$out_dir,
-    'length=i'     => \$length_threshold,
-    'subset=s'     => \$subset,
-    'block'        => \$block,
-    'parallel=i'   => \$parallel,
-    'gzip'         => \$gzip,
+    'help|?'      => \$help,
+    'man'         => \$man,
+    'i|in_dir=s'  => \$in_dir,
+    'o|out_dir=s' => \$out_dir,
+    'length=i'    => \$length_threshold,
+    'subset=s'    => \$subset,
+    'block'       => \$block,
+    'parallel=i'  => \$parallel,
+    'gzip'        => \$gzip,
 ) or pod2usage(2);
 
 pod2usage(1) if $help;
@@ -82,7 +83,9 @@ if ( scalar @files == 0 or $gzip ) {
 # run
 #----------------------------------------------------------#
 my $worker = sub {
-    my $infile = shift;
+    my ( $self, $chunk_ref, $chunk_id ) = @_;
+
+    my $infile = $chunk_ref->[0];
 
     my $in_fh;
     if ( !$gzip ) {
@@ -184,13 +187,8 @@ ALN: while ( my $line = <$in_fh> ) {
 # process each .fasta files
 my $stopwatch = AlignDB::Stopwatch->new;
 
-my @jobs = sort @files;
-my $run  = AlignDB::Run->new(
-    parallel => $parallel,
-    jobs     => \@jobs,
-    code     => $worker,
-);
-$run->run;
+my $mce = MCE->new( chunk_size => 1, max_workers => $parallel, );
+$mce->foreach( [ sort @files ], $worker );
 
 $stopwatch->block_message( "All files have been processed.", "duration" );
 exit;

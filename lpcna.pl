@@ -1,13 +1,11 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use autodie;
 
 use Getopt::Long;
 use Pod::Usage;
 use YAML qw(Dump Load DumpFile LoadFile);
-
-use AlignDB::Run;
-use AlignDB::Util qw(:all);
 
 use Time::Duration;
 use File::Find::Rule;
@@ -15,6 +13,10 @@ use File::Basename;
 use File::Remove qw(remove);
 use Path::Class;
 use String::Compare;
+
+use MCE;
+
+use AlignDB::Util qw(:all);
 
 use FindBin;
 
@@ -127,32 +129,24 @@ for ( $dir_net, $dir_axtnet ) {
     my @files = File::Find::Rule->file->name('*.lav')->in($dir_lav);
     printf "\n----%4s .lav files to be converted ----\n", scalar @files;
 
-    my $worker = sub {
-        my $job = shift;
-        my $opt = shift;
+    my $mce = MCE->new( chunk_size => 1, max_workers => $parallel, );
+    $mce->foreach(
+        [ sort @files ],
+        sub {
+            my ( $self, $chunk_ref, $chunk_id ) = @_;
 
-        my $file   = $job;
-        my $output = $file;
-        $output =~ s/lav$/psl/;
+            my $file   = $chunk_ref->[0];
+            my $output = $file;
+            $output =~ s/lav$/psl/;
 
-        # lavToPsl - Convert blastz lav to psl format
-        # usage:
-        #   lavToPsl in.lav out.psl
-        print "Run lavToPsl...\n";
-        my $cmd = "$kent_bin/lavToPsl" . " $file" . " $output";
-        exec_cmd($cmd);
-        print ".psl file generated.\n\n";
-
-        return;
-    };
-
-    my @jobs = sort @files;
-    my $run  = AlignDB::Run->new(
-        parallel => $parallel,
-        jobs     => \@jobs,
-        code     => $worker,
+            # lavToPsl - Convert blastz lav to psl format
+            # usage:
+            #   lavToPsl in.lav out.psl
+            print "Run lavToPsl...\n";
+            my $cmd = "$kent_bin/lavToPsl" . " $file" . " $output";
+            exec_cmd($cmd);
+        }
     );
-    $run->run;
 
     print "\n";
 }
@@ -164,13 +158,15 @@ for ( $dir_net, $dir_axtnet ) {
     my @files = File::Find::Rule->file->name('*.psl')->in($dir_lav);
     printf "\n----%4s .psl files to be converted ----\n", scalar @files;
 
-    my $worker = sub {
-        my $job = shift;
-        my $opt = shift;
+    my $mce = MCE->new( chunk_size => 1, max_workers => $parallel, );
+    $mce->foreach(
+        [ sort @files ],
+        sub {
+            my ( $self, $chunk_ref, $chunk_id ) = @_;
 
-        my $file   = $job;
-        my $output = $file;
-        $output =~ s/psl$/chain/;
+            my $file   = $chunk_ref->[0];
+            my $output = $file;
+            $output =~ s/psl$/chain/;
 
         # axtChain - Chain together axt alignments.
         # usage:
@@ -185,32 +181,22 @@ for ( $dir_net, $dir_axtnet ) {
         # options:
         #    -minScore=N - minimum score (after repeat stuff) to pass
         #    -noCheckScore=N - score that will pass without checks (speed tweak)
-        print "Run axtChain...\n";
-        my $cmd
-            = "$kent_bin/axtChain -minScore=$minScore -linearGap=$linearGap -psl"
-            . " $file"
-            . " $dir_target/chr.2bit"
-            . " $dir_query/chr.2bit"
-            . " stdout"
-            . " | $kent_bin/chainAntiRepeat"
-            . " $dir_target/chr.2bit"
-            . " $dir_query/chr.2bit"
-            . " stdin"
-            . " $output";
-        exec_cmd($cmd);
-        print ".chain file generated.\n\n";
-
-        return;
-    };
-
-    my @jobs = sort @files;
-
-    my $run = AlignDB::Run->new(
-        parallel => $parallel,
-        jobs     => \@jobs,
-        code     => $worker,
+            print "Run axtChain...\n";
+            my $cmd
+                = "$kent_bin/axtChain -minScore=$minScore -linearGap=$linearGap -psl"
+                . " $file"
+                . " $dir_target/chr.2bit"
+                . " $dir_query/chr.2bit"
+                . " stdout"
+                . " | $kent_bin/chainAntiRepeat"
+                . " $dir_target/chr.2bit"
+                . " $dir_query/chr.2bit"
+                . " stdin"
+                . " $output";
+            exec_cmd($cmd);
+            print ".chain file generated.\n\n";
+        }
     );
-    $run->run;
 
     print "\n";
 
@@ -305,49 +291,42 @@ for ( $dir_net, $dir_axtnet ) {
     my @files = File::Find::Rule->file->name('*.net')->in($dir_net);
     printf "\n----%4s .net files to be converted ----\n", scalar @files;
 
-    my $worker = sub {
-        my $job = shift;
-        my $opt = shift;
+    my $mce = MCE->new( chunk_size => 1, max_workers => $parallel, );
+    $mce->foreach(
+        [ sort @files ],
+        sub {
+            my ( $self, $chunk_ref, $chunk_id ) = @_;
 
-        my $file   = $job;
-        my $output = basename($file);
-        $output .= ".axt";
+            my $file   = $chunk_ref->[0];
+            my $output = basename($file);
+            $output .= ".axt";
 
-        # netToAxt - Convert net (and chain) to axt.
-        # usage:
-        #   netToAxt in.net in.chain target.2bit query.2bit out.axt
-        # note:
-        # directories full of .nib files (an older format)
-        # may also be used in place of target.2bit and query.2bit.
-        #
-        # axtSort - Sort axt files
-        # usage:
-        #   axtSort in.axt out.axt
-        print "Run netToAxt...\n";
-        my $cmd
-            = "$kent_bin/netToAxt"
-            . " $file"
-            . " $dir_lav/all.pre.chain"
-            . " $dir_target/chr.2bit"
-            . " $dir_query/chr.2bit"
-            . " stdout"
-            . " | $kent_bin/axtSort stdin"
-            . " $dir_axtnet/$output";
-        exec_cmd($cmd);
-        print ".axt file generated.\n\n";
-
-        return;
-    };
-
-    my @jobs = sort @files;
-
-    my $run = AlignDB::Run->new(
-        parallel => $parallel,
-        jobs     => \@jobs,
-        code     => $worker,
+            # netToAxt - Convert net (and chain) to axt.
+            # usage:
+            #   netToAxt in.net in.chain target.2bit query.2bit out.axt
+            # note:
+            # directories full of .nib files (an older format)
+            # may also be used in place of target.2bit and query.2bit.
+            #
+            # axtSort - Sort axt files
+            # usage:
+            #   axtSort in.axt out.axt
+            print "Run netToAxt...\n";
+            my $cmd
+                = "$kent_bin/netToAxt"
+                . " $file"
+                . " $dir_lav/all.pre.chain"
+                . " $dir_target/chr.2bit"
+                . " $dir_query/chr.2bit"
+                . " stdout"
+                . " | $kent_bin/axtSort stdin"
+                . " $dir_axtnet/$output";
+            exec_cmd($cmd);
+            print ".axt file generated.\n\n";
+        }
     );
-    $run->run;
 
+    print "\n";
 }
 
 #----------------------------------------------------------#
@@ -357,11 +336,11 @@ for ( $dir_net, $dir_axtnet ) {
     chdir $dir_lav;
     my $cmd;
 
-    $cmd = "tar -czvf lav.tar.gz [*.lav"
+    $cmd = "tar -czvf lav.tar.gz *.lav"
         ;    # bsdtar (mac) doesn't support  --remove-files
     if ( !-e "$dir_lav/lav.tar.gz" ) {
         exec_cmd($cmd);
-        remove("[*.lav");
+        remove("*.lav");
     }
 
     remove( \1, "$dir_lav/net" );
@@ -374,23 +353,18 @@ for ( $dir_net, $dir_axtnet ) {
     my @files = File::Find::Rule->file->name('*.axt')->in("$dir_lav/axtNet");
     printf "\n----%4s .axt files to be converted ----\n", scalar @files;
 
-    my $worker = sub {
-        my $job = shift;
+    my $mce = MCE->new( chunk_size => 1, max_workers => $parallel, );
+    $mce->foreach(
+        [ sort @files ],
+        sub {
+            my ( $self, $chunk_ref, $chunk_id ) = @_;
 
-        my $file = $job;
-        my $cmd  = "gzip $file";
-        exec_cmd($cmd);
+            my $file = $chunk_ref->[0];
 
-        return;
-    };
-
-    my @jobs = sort @files;
-    my $run  = AlignDB::Run->new(
-        parallel => $parallel,
-        jobs     => \@jobs,
-        code     => $worker,
+            my $cmd = "gzip $file";
+            exec_cmd($cmd);
+        }
     );
-    $run->run;
 }
 
 print "\n";

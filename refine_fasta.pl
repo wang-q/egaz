@@ -95,7 +95,14 @@ my $worker = sub {
     my ( $seq_of, $seq_names ) = read_fasta($infile);
 
     if ($quick_mode) {
-        realign_quick( $seq_of, $seq_names );
+        realign_quick(
+            $seq_of,
+            $seq_names,
+            {   indel_expand => $indel_expand,
+                indel_join   => $indel_join,
+                aln_prog     => $aln_prog,
+            }
+        );
     }
     else {
         realign_all( $seq_of, $seq_names );
@@ -158,7 +165,13 @@ my $worker_block = sub {
             }
 
             if ($quick_mode) {
-                realign_quick( $seq_of, $names );
+                realign_quick(
+                    $seq_of, $names,
+                    {   indel_expand => $indel_expand,
+                        indel_join   => $indel_join,
+                        aln_prog     => $aln_prog,
+                    }
+                );
             }
             else {
                 realign_all( $seq_of, $names );
@@ -217,75 +230,6 @@ sub realign_all {
 
     for my $i ( 0 .. scalar @{$seq_names} - 1 ) {
         $seq_of->{ $seq_names->[$i] } = uc $realigned_seqs->[$i];
-    }
-
-    return;
-}
-
-#----------------------------#
-# realign indel_flank region
-#----------------------------#
-sub realign_quick {
-    my $seq_of    = shift;
-    my $seq_names = shift;
-
-    # use AlignDB::IntSpan to find nearby indels
-    #   expand indel by a range of $indel_expand
-    my %indel_sets;
-    for (@$seq_names) {
-        $indel_sets{$_} = find_indel_set( $seq_of->{$_}, $indel_expand );
-    }
-
-    my $realign_region = AlignDB::IntSpan->new;
-    my $combinat       = Math::Combinatorics->new(
-        count => 2,
-        data  => $seq_names,
-    );
-    while ( my @combo = $combinat->next_combination ) {
-        my $intersect_set = AlignDB::IntSpan->new;
-        my $union_set     = AlignDB::IntSpan->new;
-        $intersect_set
-            = $indel_sets{ $combo[0] }->intersect( $indel_sets{ $combo[1] } );
-        $union_set
-            = $indel_sets{ $combo[0] }->union( $indel_sets{ $combo[1] } );
-
-        for my $span ( $union_set->runlists ) {
-            my $flag_set = $intersect_set->intersect($span);
-            if ( $flag_set->is_not_empty ) {
-                $realign_region->add($span);
-            }
-        }
-    }
-
-    # join adjacent realign regions
-    $realign_region = $realign_region->join_span($indel_join);
-
-    # realign all segments in realign_region
-    my @realign_region_spans = $realign_region->spans;
-    for ( reverse @realign_region_spans ) {
-        my $seg_start = $_->[0];
-        my $seg_end   = $_->[1];
-        my @segments;
-        for (@$seq_names) {
-            my $seg = substr(
-                $seq_of->{$_},
-                $seg_start - 1,
-                $seg_end - $seg_start + 1
-            );
-            push @segments, $seg;
-        }
-
-        my $realign_segments = multi_align( \@segments, $aln_prog );
-
-        for (@$seq_names) {
-            my $seg = shift @{$realign_segments};
-            $seg = uc $seg;
-            substr(
-                $seq_of->{$_},
-                $seg_start - 1,
-                $seg_end - $seg_start + 1, $seg
-            );
-        }
     }
 
     return;

@@ -211,7 +211,7 @@ printf "\n----%4s .fa files for query----\n",  scalar @query_files;
         $bz_cmd .= " --ambiguous=iupac" if $lastz;
         $bz_cmd .= " > $lav_file";
         exec_cmd($bz_cmd);
-        print ".lav file generated.\n\n";
+        printf "\n.lav file generated. [%s]\n\n", basename($lav_file);
 
         return;
     };
@@ -352,7 +352,7 @@ __END__
 
 =head1 NAME
 
-    bz.pl - execute blastz and lav2axt against two directories
+    bz.pl - execute blastz/lastz and lav2axt against two directories
     Fasta file naming rules: "seqfile[from,to]"
     Lav file naming rules: "[target]vs[query].N.lav"
 
@@ -410,20 +410,6 @@ __END__
     
     >perl part_seq.pl -in t\S288C -out t\S288C_parted -chunk 500000
     >perl bz.pl -dt t\S288C_parted -dq t\RM11\rm11.fa -s set01 -dl t\S288CvsRM11_df_tp -tp -p 1
-
-=head1 OPTIONS
-
-=over 4
-
-=item B<-help>
-
-Print a brief help message and exits.
-
-=item B<-man>
-
-Prints the manual page and exits.
-
-=back
 
 =head1 DESCRIPTION
 

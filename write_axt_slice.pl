@@ -145,7 +145,7 @@ sub write_slice {
         my $target_runlist   = $target_info->{seq_runlist};
 
         # query
-        my $query_info      = $obj->get_query_info($align_id);
+        my ($query_info)    = $obj->get_queries_info($align_id);
         my $query_chr_name  = $query_info->{chr_name};
         my $query_chr_start = $query_info->{chr_start};
         my $query_chr_end   = $query_info->{chr_end};

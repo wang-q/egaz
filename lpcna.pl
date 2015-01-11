@@ -400,28 +400,14 @@ __END__
         --man                   full documentation
 
       Run in parallel mode
-        -p, --paralle           number of child processes
+        -p, --parallel          number of child processes
 
-      Fasta dirs  
+      Fasta dirs (don't pass fasta file here, need directory)
         -dt, --dir_target       dir of target fasta files
         -dq, --dir_query        dir of query fasta files
 
       Output .lav and .axt
         -dl, --dir_lav          where .lav and .axt files storess
-
-=head1 OPTIONS
-
-=over 4
-
-=item B<-help>
-
-Print a brief help message and exits.
-
-=item B<-man>
-
-Prints the manual page and exits.
-
-=back
 
 =head1 DESCRIPTION
 

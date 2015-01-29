@@ -11,8 +11,6 @@ use YAML::Syck qw(Dump Load DumpFile LoadFile);
 use Path::Tiny;
 use List::Util qw(sum0);
 
-use Bio::SeqIO;
-
 use AlignDB::IntSpan;
 use AlignDB::Stopwatch;
 use AlignDB::Util qw(:all);

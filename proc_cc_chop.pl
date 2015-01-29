@@ -24,6 +24,8 @@ my $size_file;
 
 my $output;
 
+my $msa = 'mafft';    # Default alignment program
+
 my $man  = 0;
 my $help = 0;
 
@@ -33,6 +35,7 @@ GetOptions(
     'f|file=s'   => \$cc_file,
     's|size=s'   => \$size_file,
     'o|output=s' => \$output,
+    'msa=s'      => \$msa,
 ) or pod2usage(2);
 
 pod2usage(1) if $help;
@@ -111,8 +114,8 @@ my @copies   = grep { $_ >= 2 } sort { $a <=> $b } keys %{$count_of};
         }
 
         # aligning
-        print " " x 12, "Realign with clustalw\n";
-        my $realigned_seqs = multi_align( \@seqs, 'clustalw' );
+        print " " x 12, "Realign with $msa\n";
+        my $realigned_seqs = multi_align( \@seqs, $msa );
 
         # Chopping hanging parts
         print " " x 12, "Chopping hanging parts\n";

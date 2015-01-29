@@ -10,7 +10,11 @@ use YAML::Syck qw(Dump Load DumpFile LoadFile);
 
 use Path::Tiny;
 
+use Bio::Seq;
 use Bio::SeqIO;
+
+use Set::Scalar;
+use List::MoreUtils qw(minmax firstidx);
 
 use AlignDB::IntSpan;
 use AlignDB::Stopwatch;
@@ -90,11 +94,13 @@ my @copies   = grep { $_ >= 2 } sort { $a <=> $b } keys %{$count_of};
             ->next_seq->seq
     } @chrs;
 
+    # open file handlers
     my $seq_fh_of = {};
     for (@copies) {
         open my $fh, ">", "$output.copy$_.fas";
         $seq_fh_of->{$_} = $fh;
     }
+    open $seq_fh_of->{pairwise}, ">", "$output.pairwise.fas";
 
     my @new_cc;
 
@@ -127,7 +133,7 @@ my @copies   = grep { $_ >= 2 } sort { $a <=> $b } keys %{$count_of};
         my ( $head_chopped, $tail_chopped )
             = trim_head_tail( $seq_of, \@heads, 10, 10 );
 
-        my ( $neq_seq_of, $new_heads )
+        my ( $new_seq_of, $new_heads )
             = change_name_chopped( $seq_of, \@heads, $head_chopped,
             $tail_chopped );
 
@@ -138,12 +144,24 @@ my @copies   = grep { $_ >= 2 } sort { $a <=> $b } keys %{$count_of};
         print " " x 12, "Write sequences\n";
         for my $n ( @{$new_heads} ) {
             printf { $seq_fh_of->{$copy} } ">%s\n", $n;
-            printf { $seq_fh_of->{$copy} } "%s\n",  $neq_seq_of->{$n};
+            printf { $seq_fh_of->{$copy} } "%s\n",  $new_seq_of->{$n};
         }
         print { $seq_fh_of->{$copy} } "\n";
+        
+        # Write pairwise alignments
+        print " " x 12, "Write pairwise alignments\n";
+        my $pair_ary = best_pairwise($new_seq_of, $new_heads);
+        for my $p (@{$pair_ary}) {
+            for my $n (@{$p}) {
+                printf { $seq_fh_of->{pairwise} } ">%s\n", $n;
+                printf { $seq_fh_of->{pairwise} } "%s\n",  $new_seq_of->{$n};
+            }
+            print { $seq_fh_of->{pairwise} } "\n";
+        }
     }
 
     close $seq_fh_of->{$_} for (@copies);
+    close $seq_fh_of->{pairwise};
 
     # we don't sort @new_cc
     @cc = @new_cc;
@@ -198,6 +216,37 @@ sub seq_from_string {
     }
 
     return $seq;
+}
+
+sub best_pairwise {
+    my $seq_of = shift;
+    my $seq_names = shift;
+    
+    my $seq_number = scalar @{$seq_names};
+    
+    my @seqs = map {$seq_of->{$_}} @{$seq_names};
+
+    my $matrix = multi_align_matrix(\@seqs);
+    my $values = $matrix->_values;
+    
+    my $pair_set = Set::Scalar->new;
+    for (my $i = 0; $i < $seq_number; $i++) {
+        my @row = @{$values->[$i]};
+        splice @row, $i, 1; # remove the score of this item
+        my ($min, $max) = minmax @row;
+        my $min_idx = firstidx {$_ == $min} @{$values->[$i]};
+        my @pair = ($i, $min_idx);
+        @pair = sort { $a <=> $b } @pair;
+        $pair_set->insert($pair[0] . ':' . $pair[1]);
+    }
+    
+    my @pair_ary;
+    for my $m ($pair_set->members) {
+        my @pair = split ':', $m;
+        push @pair_ary, [$seq_names->[$pair[0]], $seq_names->[$pair[1]]];
+    }
+    
+    return \@pair_ary;
 }
 
 __END__

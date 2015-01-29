@@ -77,13 +77,13 @@ my $yml = LoadFile($cc_file);
 my @cc       = @{ $yml->{cc} };
 my $count_of = $yml->{count};
 my @copies   = grep { $_ >= 2 } sort { $a <=> $b } keys %{$count_of};
+    my @chrs = sort keys %{ read_sizes($size_file) };
 
 #----------------------------#
 # write piece sequences
 #----------------------------#
 {
     print "Write aligned cc sequences\n";
-    my @chrs = sort keys %{ read_sizes($size_file) };
 
     print " " x 4, "Load genomic sequences\n";
     my %file_of
@@ -147,12 +147,12 @@ my @copies   = grep { $_ >= 2 } sort { $a <=> $b } keys %{$count_of};
             printf { $seq_fh_of->{$copy} } "%s\n",  $new_seq_of->{$n};
         }
         print { $seq_fh_of->{$copy} } "\n";
-        
+
         # Write pairwise alignments
         print " " x 12, "Write pairwise alignments\n";
-        my $pair_ary = best_pairwise($new_seq_of, $new_heads);
-        for my $p (@{$pair_ary}) {
-            for my $n (@{$p}) {
+        my $pair_ary = best_pairwise( $new_seq_of, $new_heads );
+        for my $p ( @{$pair_ary} ) {
+            for my $n ( @{$p} ) {
                 printf { $seq_fh_of->{pairwise} } ">%s\n", $n;
                 printf { $seq_fh_of->{pairwise} } "%s\n",  $new_seq_of->{$n};
             }
@@ -171,24 +171,26 @@ my @copies   = grep { $_ >= 2 } sort { $a <=> $b } keys %{$count_of};
 #----------------------------#
 # runlist
 #----------------------------#
-my $set_of = {};
+# per copy and chr
+my $set_copy_of = {};
 for my $c (@cc) {
     my $copy = scalar @{$c};
-    if ( !exists $set_of->{$copy} ) {
-        $set_of->{$copy} = {};
+    if ( !exists $set_copy_of->{$copy} ) {
+        $set_copy_of->{$copy} = {};
     }
     for ( @{$c} ) {
         my ( $chr, $set, $strand ) = string_to_set($_);
-        if ( !exists $set_of->{$copy}{$chr} ) {
-            $set_of->{$copy}{$chr} = AlignDB::IntSpan->new;
+        if ( !exists $set_copy_of->{$copy}{$chr} ) {
+            $set_copy_of->{$copy}{$chr} = AlignDB::IntSpan->new;
         }
-        $set_of->{$copy}{$chr}->add($set);
+        $set_copy_of->{$copy}{$chr}->add($set);
     }
 }
 
-for my $key_i ( keys %{$set_of} ) {
-    for my $key_j ( keys %{ $set_of->{$key_i} } ) {
-        $set_of->{$key_i}{$key_j} = $set_of->{$key_i}{$key_j}->runlist;
+for my $key_i ( keys %{$set_copy_of} ) {
+    for my $key_j ( keys %{ $set_copy_of->{$key_i} } ) {
+        $set_copy_of->{$key_i}{$key_j}
+            = $set_copy_of->{$key_i}{$key_j}->runlist;
     }
 }
 
@@ -197,8 +199,28 @@ DumpFile(
     "$output.yml",
     {   count   => $count_of,
         cc      => \@cc,
-        runlist => $set_of,
+        runlist => $set_copy_of,
     }
+);
+
+# per chr
+my $set_chr_of = {};
+
+for my $c (@cc) {
+    for ( @{$c} ) {
+        my ( $chr, $set, $strand ) = string_to_set($_);
+        if ( !exists $set_chr_of->{$chr} ) {
+            $set_chr_of->{$chr} = AlignDB::IntSpan->new;
+        }
+        $set_chr_of->{$chr}->add($set);
+    }
+}
+for my $key_i ( keys %{$set_chr_of} ) {
+    $set_chr_of->{$key_i} = $set_chr_of->{$key_i}->runlist;
+}
+
+DumpFile(
+    "$output.chr.runlist.yml", $set_chr_of
 );
 
 $stopwatch->end_message;
@@ -219,33 +241,33 @@ sub seq_from_string {
 }
 
 sub best_pairwise {
-    my $seq_of = shift;
+    my $seq_of    = shift;
     my $seq_names = shift;
-    
-    my $seq_number = scalar @{$seq_names};
-    
-    my @seqs = map {$seq_of->{$_}} @{$seq_names};
 
-    my $matrix = multi_align_matrix(\@seqs);
+    my $seq_number = scalar @{$seq_names};
+
+    my @seqs = map { $seq_of->{$_} } @{$seq_names};
+
+    my $matrix = multi_align_matrix( \@seqs );
     my $values = $matrix->_values;
-    
+
     my $pair_set = Set::Scalar->new;
-    for (my $i = 0; $i < $seq_number; $i++) {
-        my @row = @{$values->[$i]};
-        splice @row, $i, 1; # remove the score of this item
-        my ($min, $max) = minmax @row;
-        my $min_idx = firstidx {$_ == $min} @{$values->[$i]};
-        my @pair = ($i, $min_idx);
+    for ( my $i = 0; $i < $seq_number; $i++ ) {
+        my @row = @{ $values->[$i] };
+        splice @row, $i, 1;    # remove the score of this item
+        my ( $min, $max ) = minmax @row;
+        my $min_idx = firstidx { $_ == $min } @{ $values->[$i] };
+        my @pair = ( $i, $min_idx );
         @pair = sort { $a <=> $b } @pair;
-        $pair_set->insert($pair[0] . ':' . $pair[1]);
+        $pair_set->insert( $pair[0] . ':' . $pair[1] );
     }
-    
+
     my @pair_ary;
-    for my $m ($pair_set->members) {
+    for my $m ( $pair_set->members ) {
         my @pair = split ':', $m;
-        push @pair_ary, [$seq_names->[$pair[0]], $seq_names->[$pair[1]]];
+        push @pair_ary, [ $seq_names->[ $pair[0] ], $seq_names->[ $pair[1] ] ];
     }
-    
+
     return \@pair_ary;
 }
 

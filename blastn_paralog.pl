@@ -144,7 +144,6 @@ while ( my $result = $searchio->next_result ) {
         next if $query_coverage < $coverage;
         next if $hit_coverage < $coverage;
 
-        next if $query_name eq $hit_name;
         my $strand = "+";
         if ( $hit_set_plus->size < $hit_set_minus->size ) {
             print " " x 4, "Hit on revere strand\n";
@@ -176,12 +175,6 @@ __END__
       Options:
         --help               brief help message
         --man                full documentation
-        --server             MySQL server IP/Domain name
-        --db                 database name
-        --username           username
-        --password           password
-        --datalib|da         blast database
-        --megablast|mega     use megablast or not
         --view|v             blast output format
 
     update_align_paralog.pl -d=Nipvs9311 -da=nip_chro --mega=1 -v=9

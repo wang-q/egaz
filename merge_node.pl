@@ -7,9 +7,7 @@ use Pod::Usage;
 use Config::Tiny;
 use YAML::Syck qw(Dump Load DumpFile LoadFile);
 
-use File::Find::Rule;
 use File::Basename;
-use IO::Zlib;
 use Graph;
 use List::MoreUtils qw(uniq);
 

@@ -22,14 +22,13 @@ use AlignDB::Util qw(:all);
 #----------------------------------------------------------#
 my $in_dir = '.';    # Specify location here
 my $out_dir;         # Specify output dir here
-my $length_threshold = 1000; # Set the threshold of alignment length
-my $subset;                  # get sequences of listed names, seperated by comma
-my $block;                   # write galaxy style blocked fasta
+my $length = 1000;   # Set the threshold of alignment length
+my $subset;          # get sequences of listed names, seperated by comma
 
 # run in parallel mode
 my $parallel = 1;
 
-my $gzip;                    # open .maf.gz
+my $gzip;            # open .gz
 
 my $man  = 0;
 my $help = 0;
@@ -39,9 +38,8 @@ GetOptions(
     'man'         => \$man,
     'i|in_dir=s'  => \$in_dir,
     'o|out_dir=s' => \$out_dir,
-    'length=i'    => \$length_threshold,
+    'l|length=i'  => \$length,
     'subset=s'    => \$subset,
-    'block'       => \$block,
     'parallel=i'  => \$parallel,
     'gzip'        => \$gzip,
 ) or pod2usage(2);
@@ -50,19 +48,14 @@ pod2usage(1) if $help;
 pod2usage( -exitstatus => 0, -verbose => 2 ) if $man;
 
 #----------------------------------------------------------#
-# make output dir
+# Init
 #----------------------------------------------------------#
 unless ($out_dir) {
     $out_dir = File::Spec->rel2abs($in_dir) . "_fasta";
-    $out_dir = $out_dir . "_block" if $block;
     $out_dir = $out_dir . "_$subset" if $subset;
 }
 if ( !-e $out_dir ) {
     mkdir $out_dir, 0777;
-}
-elsif ($block) {
-    print "We are going to output blocked fasta.\n";
-    die "$out_dir exists, you should remove it first to avoid errors.\n";
 }
 
 #----------------------------------------------------------#
@@ -85,8 +78,8 @@ if ( scalar @files == 0 or $gzip ) {
 my $worker = sub {
     my ( $self, $chunk_ref, $chunk_id ) = @_;
 
+    # open files
     my $infile = $chunk_ref->[0];
-
     my $in_fh;
     if ( !$gzip ) {
         open $in_fh, '<', $infile;
@@ -95,6 +88,11 @@ my $worker = sub {
         $in_fh = IO::Zlib->new( $infile, "rb" );
     }
 
+    my $outfile = basename($infile);
+    $outfile = $out_dir . "/$outfile" . ".fas";
+    open my $out_fh, ">", $outfile;
+
+    # read and write
     my $content = '';
 ALN: while ( my $line = <$in_fh> ) {
         if ( $line =~ /^\s+$/ and $content =~ /\S/ ) {    # meet blank line
@@ -134,40 +132,13 @@ ALN: while ( my $line = <$in_fh> ) {
                 }
                 @names = @subsets;
             }
-            my $target = $names[0];
 
             # output
-            if ($block) {
-                my $outfile = basename($infile);
-                $outfile = $out_dir . "/$outfile" . ".fas";
-
-                open my $fh, ">>", $outfile;
-                for my $species (@names) {
-                    my $chr    = $info_of->{$species}{chr_name};
-                    my $start  = $info_of->{$species}{chr_start};
-                    my $end    = $info_of->{$species}{chr_end};
-                    my $strand = $info_of->{$species}{chr_strand};
-                    print {$fh} ">$species.$chr($strand)";
-                    print {$fh} ":$start-$end";
-                    print {$fh} "|species=$species";
-                    print {$fh} "\n";
-                    print {$fh} $info_of->{$species}{seq}, "\n";
-                }
-                print {$fh} "\n";
-                close $fh;
+            for my $species (@names) {
+                printf {$out_fh} ">%s\n", encode_header( $info_of->{$species} );
+                printf {$out_fh} "%s\n",  $info_of->{$species}{seq};
             }
-            else {
-                my $chr   = $info_of->{$target}{chr_name};
-                my $start = $info_of->{$target}{chr_start};
-                my $end   = $info_of->{$target}{chr_end};
-
-                open my $fh, '>', $out_dir . "/$chr" . "-$start" . "-$end.fas";
-                for my $species (@names) {
-                    print {$fh} ">$species\n";
-                    print {$fh} $info_of->{$species}{seq} . "\n";
-                }
-                close $fh;
-            }
+            print {$out_fh} "\n";
         }
         elsif ( $line =~ /^#/ ) {    # comments
             next;
@@ -181,16 +152,26 @@ ALN: while ( my $line = <$in_fh> ) {
         }
     }
 
+    # close file handlers
+    if ( !$gzip ) {
+        close $in_fh;
+    }
+    else {
+        $in_fh->close;
+    }
+    close $out_fh;
+
     print ".fas file generated.\n\n";
 };
 
-# process each .fasta files
+# process each files
 my $stopwatch = AlignDB::Stopwatch->new;
 
 my $mce = MCE->new( chunk_size => 1, max_workers => $parallel, );
 $mce->foreach( [ sort @files ], $worker );
 
 $stopwatch->block_message( "All files have been processed.", "duration" );
+
 exit;
 
 __END__
@@ -200,20 +181,15 @@ __END__
     maf2fasta.pl - convert maf to fasta
 
 =head1 SYNOPSIS
-    perl maf2fasta.pl --in_dir G:/S288CvsRM11
+    perl maf2fasta.pl --in G:/S288CvsRM11
 
     maf2fasta.pl [options]
       Options:
         --help              brief help message
         --man               full documentation
-        --in_dir            fasta files' location
-        --out_dir           output location
+        --in                maf files' location
+        --out               output location
         --length            length threshold
         --parallel          run in parallel mode
-
-=head1 DESCRIPTION
-
-B<This program> will read the given input file(s) and do someting
-useful with the contents thereof.
 
 =cut

@@ -77,7 +77,7 @@ my $yml = LoadFile($cc_file);
 my @cc       = @{ $yml->{cc} };
 my $count_of = $yml->{count};
 my @copies   = grep { $_ >= 2 } sort { $a <=> $b } keys %{$count_of};
-    my @chrs = sort keys %{ read_sizes($size_file) };
+my @chrs     = sort keys %{ read_sizes($size_file) };
 
 #----------------------------#
 # write piece sequences
@@ -153,8 +153,9 @@ my @copies   = grep { $_ >= 2 } sort { $a <=> $b } keys %{$count_of};
         my $pair_ary = best_pairwise( $new_seq_of, $new_heads );
         for my $p ( @{$pair_ary} ) {
             for my $n ( @{$p} ) {
-                printf { $seq_fh_of->{pairwise} } ">%s\n", $n;
-                printf { $seq_fh_of->{pairwise} } "%s\n",  $new_seq_of->{$n};
+                printf { $seq_fh_of->{pairwise} } ">%s",        $n;
+                printf { $seq_fh_of->{pairwise} } "|copy=%s\n", $copy;
+                printf { $seq_fh_of->{pairwise} } "%s\n", $new_seq_of->{$n};
             }
             print { $seq_fh_of->{pairwise} } "\n";
         }
@@ -219,9 +220,7 @@ for my $key_i ( keys %{$set_chr_of} ) {
     $set_chr_of->{$key_i} = $set_chr_of->{$key_i}->runlist;
 }
 
-DumpFile(
-    "$output.chr.runlist.yml", $set_chr_of
-);
+DumpFile( "$output.chr.runlist.yml", $set_chr_of );
 
 $stopwatch->end_message;
 exit;

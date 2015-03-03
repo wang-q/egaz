@@ -20,14 +20,10 @@ use lib "$FindBin::Bin/../lib";
 #----------------------------------------------------------#
 # GetOpt section
 #----------------------------------------------------------#
-my $Config = Config::Tiny->new;
-$Config = Config::Tiny->read("$FindBin::Bin/../alignDB.ini");
-
 # record ARGV and Config
 my $stopwatch = AlignDB::Stopwatch->new(
     program_name => $0,
     program_argv => [@ARGV],
-    program_conf => $Config,
 );
 
 my $file;

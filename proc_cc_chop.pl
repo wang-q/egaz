@@ -152,10 +152,13 @@ my @chrs     = sort keys %{ read_sizes($size_file) };
         print " " x 12, "Write pairwise alignments\n";
         my $pair_ary = best_pairwise( $new_seq_of, $new_heads );
         for my $p ( @{$pair_ary} ) {
-            for my $n ( @{$p} ) {
-                printf { $seq_fh_of->{pairwise} } ">%s",        $n;
+            my $realigned_pair = multi_align(
+                [ $new_seq_of->{ $p->[0] }, $new_seq_of->{ $p->[1] } ], $msa );
+            for my $i ( 0 .. scalar @{$p} - 1 ) {
+                printf { $seq_fh_of->{pairwise} } ">%s",        $p->[$i];
                 printf { $seq_fh_of->{pairwise} } "|copy=%s\n", $copy;
-                printf { $seq_fh_of->{pairwise} } "%s\n", $new_seq_of->{$n};
+                printf { $seq_fh_of->{pairwise} } "%s\n",
+                    uc $realigned_pair->[$i];
             }
             print { $seq_fh_of->{pairwise} } "\n";
         }

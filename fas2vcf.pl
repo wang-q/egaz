@@ -7,8 +7,6 @@ use Getopt::Long;
 use Pod::Usage;
 use YAML qw(Dump Load DumpFile LoadFile);
 
-use File::Spec;
-use File::Basename;
 use IO::Zlib;
 use Path::Tiny;
 
@@ -57,7 +55,7 @@ my $length_of = read_sizes($size_file);
 }
 
 {
-    my @files = $temp_dir->children( qr/\.fas$/ );
+    my @files = $temp_dir->children(qr/\.fas$/);
 
     for my $f (@files) {
         my ( $name, $chr_name, $chr_strand, $chr_pos ) = split /\./,
@@ -76,19 +74,20 @@ my $length_of = read_sizes($size_file);
             if ( $l =~ /^chrUn\t/ ) {
                 my @fields = split /\t/, $l;
                 $fields[0] = $chr_name;
-                $fields[1]
-                    = $chr_start + $fields[1] - 1;    # vcf position is 1-based
+
+                # vcf position is 1-based
+                $fields[1] = $chr_start + $fields[1] - 1;
                 $l = join "\t", @fields;
             }
         }
 
         my $vf = $f . '.vcf';
-        path($vf)->spew(map {$_ . "\n"} @lines);
-        $temp_list->append($vf . "\n");
+        path($vf)->spew( map { $_ . "\n" } @lines );
+        $temp_list->append( $vf . "\n" );
     }
 }
 
-{ # concat vcf
+{    # concat vcf
     my $cmd = "vcf-concat -f $temp_list > $out_file";
     exec_cmd($cmd);
 }

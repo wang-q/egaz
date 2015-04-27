@@ -94,18 +94,20 @@ my $worker = sub {
 
     my ( $seq_of, $seq_names ) = read_fasta($infile);
 
-    if ($quick_mode) {
-        realign_quick(
-            $seq_of,
-            $seq_names,
-            {   indel_expand => $indel_expand,
-                indel_join   => $indel_join,
-                aln_prog     => $aln_prog,
-            }
-        );
-    }
-    else {
-        realign_all( $seq_of, $seq_names );
+    if ( $aln_prog ne 'none' ) {
+        if ($quick_mode) {
+            realign_quick(
+                $seq_of,
+                $seq_names,
+                {   indel_expand => $indel_expand,
+                    indel_join   => $indel_join,
+                    aln_prog     => $aln_prog,
+                }
+            );
+        }
+        else {
+            realign_all( $seq_of, $seq_names );
+        }
     }
 
     trim_pure_dash( $seq_of, $seq_names );
@@ -251,7 +253,7 @@ __END__
         --in_dir            fasta files' location
         --out_dir           output location
         --length            length threshold
-        --msa               alignment program
+        --msa               alignment program (none means don't do realigning)
         --quick             use quick mode
         --no_trim           don't trim outgroup sequence (the first one)
         --expand            in quick mode, expand indel region

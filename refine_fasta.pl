@@ -10,6 +10,7 @@ use YAML qw(Dump Load DumpFile LoadFile);
 use File::Spec;
 use File::Find::Rule;
 use File::Basename;
+use File::Remove qw(remove);
 use List::Util qw(first max maxstr min minstr reduce shuffle sum);
 use List::MoreUtils qw(any all);
 use Math::Combinatorics;
@@ -66,13 +67,13 @@ unless ($out_dir) {
     $out_dir = File::Spec->rel2abs($in_dir) . "_$aln_prog";
     $out_dir = $out_dir . "_quick" if $quick_mode;
 }
-if ( !-e $out_dir ) {
-    mkdir $out_dir, 0777;
+
+if ( -e $out_dir ) {
+    warn "$out_dir exists, remove it.\n";
+    remove( \1, $out_dir );
 }
-elsif ($block) {
-    print "We are going to output blocked fasta.\n";
-    die "$out_dir exists, you should remove it first to avoid errors.\n";
-}
+
+mkdir $out_dir, 0777;
 
 #----------------------------------------------------------#
 # Search for all files
@@ -166,17 +167,19 @@ my $worker_block = sub {
                 $seq_of->{$idx} = $seq;
             }
 
-            if ($quick_mode) {
-                realign_quick(
-                    $seq_of, $names,
-                    {   indel_expand => $indel_expand,
-                        indel_join   => $indel_join,
-                        aln_prog     => $aln_prog,
-                    }
-                );
-            }
-            else {
-                realign_all( $seq_of, $names );
+            if ( $aln_prog ne 'none' ) {
+                if ($quick_mode) {
+                    realign_quick(
+                        $seq_of, $names,
+                        {   indel_expand => $indel_expand,
+                            indel_join   => $indel_join,
+                            aln_prog     => $aln_prog,
+                        }
+                    );
+                }
+                else {
+                    realign_all( $seq_of, $names );
+                }
             }
 
             trim_pure_dash( $seq_of, $names );

@@ -55,6 +55,9 @@ my $syn;
 # don't drop unused syntenies
 my $all;
 
+# keep intermediate file
+my $noclean;
+
 # run in parallel mode
 my $parallel = 1;
 
@@ -72,6 +75,7 @@ GetOptions(
     'target=s'       => \$target_name,
     'syn'            => \$syn,
     'all'            => \$all,
+    'noclean'            => \$noclean,
     'p|parallel=i'   => \$parallel,
 ) or pod2usage(2);
 
@@ -339,10 +343,12 @@ my $worker = sub {
         $step++;
     }
 
-    print "Clean temp files.\n";
-    remove("$out_dir/$chr_name.out1");
-    remove("$out_dir/$chr_name.out2");
-    remove("$out_dir/$chr_name.step*");
+    if (! $noclean) {
+        print "Clean temp files.\n";
+        remove("$out_dir/$chr_name.out1");
+        remove("$out_dir/$chr_name.out2");
+        remove("$out_dir/$chr_name.step*");
+    }
 
     my $cmd = "gzip " . "$out_dir/$chr_name$suffix";
     exec_cmd($cmd);

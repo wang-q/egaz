@@ -352,9 +352,7 @@ __END__
 
 =head1 NAME
 
-    bz.pl - execute blastz/lastz and lav2axt against two directories
-    Fasta file naming rules: "seqfile[from,to]"
-    Lav file naming rules: "[target]vs[query].N.lav"
+bz.pl - execute blastz/lastz and lav2axt against two directories
 
 =head1 SYNOPSIS
 
@@ -422,5 +420,9 @@ target files in dir_target will be processed.
 So, if there are combined fasta files and multi fasta files coexisting in the
 target directory, just delete the axt file matched with the combined fasta
 filename.
+
+Fasta file naming rules: "seqfile[from,to]"
+
+Lav file naming rules: "[target]vs[query].N.lav"
 
 =cut

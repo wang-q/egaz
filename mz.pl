@@ -3,9 +3,11 @@ use strict;
 use warnings;
 use autodie;
 
-use Getopt::Long;
-use Pod::Usage;
+use Getopt::Long qw(HelpMessage);
+use FindBin;
 use YAML qw(Dump Load DumpFile LoadFile);
+
+use MCE;
 
 use Bio::Phylo::IO qw(parse);
 use Set::Scalar;
@@ -23,58 +25,54 @@ use File::Basename;
 use File::Remove qw(remove);
 use File::Copy::Recursive qw(fcopy);
 
-use MCE;
-
 use AlignDB::Util qw(:all);
-
-use FindBin;
 
 #----------------------------------------------------------#
 # GetOpt section
 #----------------------------------------------------------#
-# dirs of *pairwise* maf
-my @dirs;
 
-# newick tree
-# Must be a rooted tree
-my $tree_file;
+=head1 NAME
 
-#  names
-my $target_name;
+mz.pl - Multiz step by step
 
-# output dir
-my $out_dir;
+=head1 SYNOPSIS
 
-# .synNet.maf or .net.maf
-my $syn;
+    perl mz.pl -d <axt dir> -d <axt dir> --tree <.nwk> [options]
+      Options:
+        --help          -?          brief help message
+        --dir           -d  @STR    dirs of *pairwise* maf
+        --tree              STR     newick tree, must be a rooted tree
+        --target            STR     target name
+        --out           -o  STR     output dir
+        --all                       don't drop unused syntenies
+        --noclean                   keep intermediate file
+        --syn                       .synNet.maf or .net.maf
+        --parallel      -p  INT     run in parallel mode, [1]
 
-# don't drop unused syntenies
-my $all;
 
-# keep intermediate file
-my $noclean;
+        perl mz.pl  -d ~/data/alignment/arabidopsis19/AthvsLyrata/ \
+                    -d ~/data/alignment/arabidopsis19/AthvsBur_0/ \
+                    -d ~/data/alignment/arabidopsis19/AthvsZu_0/ \
+                    -d ~/data/alignment/arabidopsis19/AthvsNo_0/ \
+                    -d ~/data/alignment/arabidopsis19/AthvsLer_0/ \
+                    --tree ~/data/alignment/arabidopsis19/19way.nwk \
+                    --parallel 8 \
+                    -syn
 
-# run in parallel mode
-my $parallel = 1;
-
-my $man  = 0;
-my $help = 0;
+=cut
 
 GetOptions(
-    'help|?'         => \$help,
-    'man'            => \$man,
-    'd|dir=s'        => \@dirs,
-    'out=s'          => \$out_dir,
-    'tree=s'         => \$tree_file,
-    'target=s'       => \$target_name,
-    'syn'            => \$syn,
-    'all'            => \$all,
-    'noclean'            => \$noclean,
-    'p|parallel=i'   => \$parallel,
-) or pod2usage(2);
+    'help|?'   => sub { HelpMessage(0) },
+    'dir|d=s'  => \my @dirs,
+    'out|o=s'  => \my $out_dir,
+    'tree=s'   => \my $tree_file,
+    'target=s' => \my $target_name,
+    'all'      => \my $all,
+    'noclean'  => \my $noclean,
+    'syn'      => \my $syn,
+    'parallel|p=i' => \( my $parallel = 1 ),
+) or HelpMessage(1);
 
-pod2usage(1) if $help;
-pod2usage( -exitstatus => 0, -verbose => 2 ) if $man;
 
 #----------------------------------------------------------#
 # Init
@@ -111,7 +109,7 @@ if ($gzip) {
 #----------------------------#
 # Gather species list from maf and tree
 #----------------------------#
-my @species;   # species list gathered from maf files; and then shift target out
+my @species;       # species list gathered from maf files; and then shift target out
 my %species_of;    # file to species
 my %seen;          # count
 {
@@ -154,8 +152,7 @@ my $number_of_chr;
 {
 
     if ( !$target_name ) {
-        printf "%s appears %d times, use it as target.\n", $species[0],
-            $seen{ $species[0] };
+        printf "%s appears %d times, use it as target.\n", $species[0], $seen{ $species[0] };
         $target_name = $species[0];
         shift @species;
     }
@@ -230,8 +227,7 @@ my @chr_names;
             }
         }
 
-        my @chrs = map { basename $_ , $suffix }
-            @species_files;    # strip dir and suffix
+        my @chrs = map { basename $_ , $suffix } @species_files;    # strip dir and suffix
         $file_of->{$name} = { zip( @chrs, @species_files ) };
         push @chr_string, join " ", sort @chrs;
     }
@@ -313,13 +309,7 @@ my $worker = sub {
         # Omit out1 and out2, unused synteny will be printed to stdout and
         # reused by following multiz processes
         print "Run multiz...\n";
-        my $cmd
-            = "multiz"
-            . " $maf1"
-            . " $maf2" . " 1 "
-            . " $out1"
-            . " $out2"
-            . " > $maf_step";
+        my $cmd = "multiz" . " $maf1" . " $maf2" . " 1 " . " $out1" . " $out2" . " > $maf_step";
         exec_cmd($cmd);
         print "Step [$step] .maf file generated.\n\n";
 
@@ -337,7 +327,7 @@ my $worker = sub {
         $step++;
     }
 
-    if (! $noclean) {
+    if ( !$noclean ) {
         print "Clean temp files.\n";
         remove("$out_dir/$chr_name.out1");
         remove("$out_dir/$chr_name.out2");
@@ -359,8 +349,8 @@ my $mce = MCE->new( chunk_size => 1, max_workers => $parallel, );
 $mce->foreach( \@chr_names, $worker );
 
 {    # summary
-    my $cmd = "echo -e 'step,spe1,spe2,maf1,maf2,out1,out2,size,per_size'"
-        . " > $out_dir/steps.csv";
+    my $cmd
+        = "echo -e 'step,spe1,spe2,maf1,maf2,out1,out2,size,per_size'" . " > $out_dir/steps.csv";
     exec_cmd($cmd);
 
     $cmd
@@ -461,8 +451,7 @@ sub ladder {
         $set->insert( $_->get_name ) for @nodes;
         my $distance_of = {};
         for my $node (@nodes) {
-            $distance_of->{ $node->get_name }
-                = $node->calc_patristic_distance($target);
+            $distance_of->{ $node->get_name } = $node->calc_patristic_distance($target);
         }
         my @sorted = map { $_->[0] }
             sort { $a->[1] <=> $b->[1] }
@@ -477,52 +466,3 @@ sub ladder {
 }
 
 __END__
-
-=head1 NAME
-
-    mz.pl - Multiz step by step
-
-=head1 SYNOPSIS
-
-    mz.pl -dt <one target dir or file> -dq <one query dir or file> [options]
-      Options:
-        -?, --help              brief help message
-        --man                   full documentation
-
-      Run in parallel mode
-        -p, --paralle           number of child processes
-
-      Fasta dirs  
-        -dt, --dir_target       dir of target fasta files
-        -dq, --dir_query        dir of query fasta files
-
-      Output .lav and .axt
-        -dl, --dir_lav          where .lav and .axt files storess
-    
-        perl mz.pl  -d ~/data/alignment/arabidopsis19/AthvsLyrata/ \
-                    -d ~/data/alignment/arabidopsis19/AthvsBur_0/ \
-                    -d ~/data/alignment/arabidopsis19/AthvsZu_0/ \
-                    -d ~/data/alignment/arabidopsis19/AthvsNo_0/ \
-                    -d ~/data/alignment/arabidopsis19/AthvsLer_0/ \
-                    --tree ~/data/alignment/arabidopsis19/19way.nwk \
-                    --parallel 8 \
-                    -syn
-
-=head1 OPTIONS
-
-=over 4
-
-=item B<-help>
-
-Print a brief help message and exits.
-
-=item B<-man>
-
-Prints the manual page and exits.
-
-=back
-
-=head1 DESCRIPTION
-
-
-=cut

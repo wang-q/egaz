@@ -30,7 +30,7 @@ lav2axt.pl - convert .lav files to .axt files
 GetOptions(
     'help|?'      => sub { HelpMessage(0) },
     'lavfile|l=s' => \my $lavfile,
-    'outputLo=s'  => \my $output,
+    'output|o=s'  => \my $output,
 ) or HelpMessage(1);
 
 $lavfile =~ s/\\/\//g;

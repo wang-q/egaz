@@ -1,34 +1,40 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use autodie;
 
-use Getopt::Long;
-use Pod::Usage;
+use Getopt::Long qw(HelpMessage);
+use FindBin;
+use YAML qw(Dump Load DumpFile LoadFile);
 
+use Path::Tiny;
 use JSON::XS;
-use File::Slurp;
 
 #----------------------------------------------------------#
 # GetOpt section
 #----------------------------------------------------------#
-my $lavfile;
-my $output;
 
-my $pretty;
+=head1 NAME
 
-my $man  = 0;
-my $help = 0;
+    lav2json.pl - convert .lav files to .json files
+
+=head1 SYNOPSIS
+
+    perl lav2json.pl -l <lavfile> -o <output> [options]
+      Options:
+        --help          -?          brief help message
+        --lavfile       -l  STR
+        --output        -o  STR
+        --prety         -p
+
+=cut
 
 GetOptions(
-    'help|?'      => \$help,
-    'man'         => \$man,
-    'l|lavfile=s' => \$lavfile,
-    'o|output=s'  => \$output,
-    'p|pretty'    => \$pretty,
-) or pod2usage(2);
-
-pod2usage(1) if $help;
-pod2usage( -exitstatus => 0, -verbose => 2 ) if $man;
+    'help|?'      => sub { HelpMessage(0) },
+    'lavfile|l=s' => \my $lavfile,
+    'output|o=s'  => \my $output,
+    'pretty|p'    => \my $pretty,
+) or HelpMessage(1);
 
 $lavfile =~ s/\\/\//g;
 unless ($output) {
@@ -43,7 +49,7 @@ my $coder = JSON::XS->new->ascii->allow_nonref;
 $coder->pretty if $pretty;
 my $full_json = {};
 
-my $lav_content = read_file($lavfile);
+my $lav_content = path($lavfile)->slurp;
 my @lavs = split /\#\:lav/, $lav_content;
 shift @lavs;    # .lav file start with #:lav
 
@@ -179,39 +185,3 @@ close $fh;
 exit;
 
 __END__
-
-=head1 NAME
-
-    lav2json.pl - convert .lav files to .json files
-
-=head1 SYNOPSIS
-
-    lav2json.pl -l <lavfile> -o <output> [options]
-      Options:
-        -h, --help              brief help message
-        -m, --man               full documentation
-        -l, --lavfile
-        -o, --output
-        -p, --prety
-
-=head1 OPTIONS
-
-=over 8
-
-=item B<-help>
-
-Print a brief help message and exits.
-
-=item B<-man>
-
-Prints the manual page and exits.
-
-=back
-
-=head1 DESCRIPTION
-
-B<This program> will read the given input file(s) and do someting
-useful with the contents thereof.
-
-=cut
-

@@ -3,38 +3,48 @@ use strict;
 use warnings;
 use autodie;
 
-use Getopt::Long;
-use Pod::Usage;
+use Getopt::Long qw(HelpMessage);
+use FindBin;
 use YAML qw(Dump Load DumpFile LoadFile);
 
 use IO::Zlib;
 use Path::Tiny;
 
 use AlignDB::Stopwatch;
-use AlignDB::Util qw(:all);
+
+use lib "$FindBin::RealBin/lib";
+use MyUtil qw(read_sizes);
 
 #----------------------------------------------------------#
 # GetOpt section
 #----------------------------------------------------------#
-my $in_file;     # blocked fasta file
-my $out_file;    # Specify output dir here
 
-my $size_file;   # chr.sizes
+=head1 NAME
+
+fas2vcf.pl - list variations in blocked fasta file
+
+=head1 SYNOPSIS
+
+    perl fas2vcf.pl --in <.fas> -s <chr.sizes> [options]
+      Options:
+        --help              brief help message
+        --man               full documentation
+        -i, --in_file       blocked fasta file's location
+        -o, --out_file      output location
+        -s, --size_file     chr.size
+
+    perl fas2vcf.pl --in I.net.axt.fas -s chr.sizes
+
+=cut
+
 my $jvk = '~/share/jvarkit/biostar94573.jar';
 
-my $man  = 0;
-my $help = 0;
-
 GetOptions(
-    'help|?'        => \$help,
-    'man'           => \$man,
-    'i|in_file=s'   => \$in_file,
-    'o|out_file=s'  => \$out_file,
-    's|size_file=s' => \$size_file,
-) or pod2usage(2);
-
-pod2usage(1) if $help;
-pod2usage( -exitstatus => 0, -verbose => 2 ) if $man;
+    'help|?' => sub { HelpMessage(0) },
+    'i|in_file=s'   => \my $in_file,
+    'o|out_file=s'  => \my $out_file,
+    's|size_file=s' => \my $size_file,
+) or HelpMessage(1);
 
 #----------------------------------------------------------#
 # Search for all files
@@ -58,8 +68,7 @@ my $length_of = read_sizes($size_file);
     my @files = $temp_dir->children(qr/\.fas$/);
 
     for my $f (@files) {
-        my ( $name, $chr_name, $chr_strand, $chr_pos ) = split /\./,
-            $f->basename(".fas");
+        my ( $name, $chr_name, $chr_strand, $chr_pos ) = split /\./, $f->basename(".fas");
         my ( $chr_start, $chr_end ) = split /\-/, $chr_pos;
         my $chr_length = $length_of->{$chr_name};
 
@@ -68,8 +77,7 @@ my $length_of = read_sizes($size_file);
 
         for my $l (@lines) {
             if ( $l =~ /^\#\#contig\=\<ID\=/ ) {
-                $l
-                    = "##contig=<ID=$chr_name,length=@{[$length_of->{$chr_name}]}>";
+                $l = "##contig=<ID=$chr_name,length=@{[$length_of->{$chr_name}]}>";
             }
             if ( $l =~ /^chrUn\t/ ) {
                 my @fields = split /\t/, $l;
@@ -107,24 +115,3 @@ sub exec_cmd {
 }
 
 __END__
-
-=head1 NAME
-
-    fas2vcf.pl - list variations in blocked fasta file
-
-=head1 SYNOPSIS
-
-    perl fas2vcf.pl --in I.net.axt.fas -s chr.sizes
-
-      Options:
-        --help              brief help message
-        --man               full documentation
-        -i, --in_file       blocked fasta file's location
-        -o, --out_file      output location
-        -s, --size_file     chr size
-
-=cut
-
-perl fas2vcf.pl -i ~/data/alignment/yeast_combine/S288CvsIII_mft/chrI.synNet.maf.gz.fas \
-    -s /Users/wangq/data/alignment/yeast_combine/S288C/chr.sizes \
-    

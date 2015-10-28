@@ -32,10 +32,6 @@ use FindBin;
 #----------------------------------------------------------#
 # GetOpt section
 #----------------------------------------------------------#
-# executable file location
-my $kent_bin   = "~/bin/x86_64";
-my $multiz_bin = "~/bin";
-
 # dirs of *pairwise* maf
 my @dirs;
 
@@ -67,8 +63,6 @@ my $help = 0;
 GetOptions(
     'help|?'         => \$help,
     'man'            => \$man,
-    'bin|kent_bin=s' => \$kent_bin,
-    'multiz_bin=s'   => \$multiz_bin,
     'd|dir=s'        => \@dirs,
     'out=s'          => \$out_dir,
     'tree=s'         => \$tree_file,
@@ -123,7 +117,7 @@ my %seen;          # count
 {
     print "Get species list\n";
     for (@files) {
-        my $cmd = "$kent_bin/mafSpeciesList $_ stdout";
+        my $cmd = "mafSpeciesList $_ stdout";
         $species_of{$_} = [ grep {$_} split /\n/, `$cmd` ];
     }
 
@@ -320,7 +314,7 @@ my $worker = sub {
         # reused by following multiz processes
         print "Run multiz...\n";
         my $cmd
-            = "$multiz_bin/multiz"
+            = "multiz"
             . " $maf1"
             . " $maf2" . " 1 "
             . " $out1"

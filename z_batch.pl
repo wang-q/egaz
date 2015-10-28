@@ -1,14 +1,13 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use autodie;
 
-use Getopt::Long;
-use Pod::Usage;
-use Config::Tiny;
+use Getopt::Long qw(HelpMessage);
+use FindBin;
 use YAML qw(Dump Load DumpFile LoadFile);
 
-use File::Basename;
-use File::Spec;
+use Path::Tiny;
 use Time::Duration;
 
 use AlignDB::IntSpan;
@@ -19,35 +18,28 @@ use FindBin;
 #----------------------------------------------------------#
 # GetOpt section
 #----------------------------------------------------------#
-# executable file location
-my $kent_bin = "~/bin/x86_64";
 
-# dirs
-my ( $dir_target, $dir_query, );
-my $dir_working = ".";
+=head1 NAME
 
-# running tasks
-my $task = "1";
+z_batch.pl - bz.pl, lpcna.pl and amp.pl
 
-# run in parallel mode
-my $parallel = 1;
+=head1 SYNOPSIS
 
-my $man  = 0;
-my $help = 0;
+    perl z_batch.pl -dt t/S288C -dq t/RM11/rm11.fa -dw . -p 4 -r 1
+
+    perl z_batch.pl -dt t/S288C -dq t/RM11/rm11.fa -dw . -p 4 -r 2-4
+
+=cut
 
 GetOptions(
-    'help|?'           => \$help,
-    'man'              => \$man,
-    'bin|kent_bin=s'   => \$kent_bin,
-    'dt|dir_target=s'  => \$dir_target,
-    'dq|dir_query=s'   => \$dir_query,
-    'dw|dir_working=s' => \$dir_working,
-    'parallel=i'       => \$parallel,
-    'r|run=s'          => \$task,
-) or pod2usage(2);
+    'help|?'          => sub { HelpMessage(0) },
+    'dir_target|dt=s' => \my $dir_target,
+    'dir_query|dq=s'  => \my $dir_query,
+    'dir_working|dw=s' => \( my $dir_working = '.' ),
+    'parallel|p=i'     => \( my $parallel    = 1 ),
+    'r|run=s'          => \( my $task        = 1 ),
 
-pod2usage(1) if $help;
-pod2usage( -exitstatus => 0, -verbose => 2 ) if $man;
+) or HelpMessage(1);
 
 my @tasks;
 {
@@ -92,13 +84,11 @@ my $dispatch = {
         . " -dl $ldir"
         . " --parallel $parallel",
     3 => "perl $FindBin::Bin/lpcna.pl"
-        . " -bin $kent_bin"
         . " -dt $dir_target"
         . " -dq $dir_query"
         . " -dl $ldir"
         . " --parallel $parallel",
     4 => "perl $FindBin::Bin/amp.pl" . " -syn"
-        . " -bin $kent_bin"
         . " -dt $dir_target"
         . " -dq $dir_query"
         . " -dl $ldir"
@@ -140,7 +130,3 @@ sub exec_cmd {
 }
 
 __END__
-
-perl z_batch.pl -dt t/S288C -dq t/RM11/rm11.fa -dw . -p 4 -r 1
-
-perl z_batch.pl -dt t/S288C -dq t/RM11/rm11.fa -dw . -p 4 -r 2-4

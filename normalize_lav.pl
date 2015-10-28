@@ -1,36 +1,23 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use autodie;
 
-use Getopt::Long;
-use Pod::Usage;
-
-use File::Slurp;
-use List::Util qw(first max maxstr min minstr reduce shuffle sum);
+use Getopt::Long qw(HelpMessage);
+use FindBin;
+use YAML qw(Dump Load DumpFile LoadFile);
 
 #----------------------------------------------------------#
 # GetOpt section
 #----------------------------------------------------------#
-my $lavfile;
-my $outfile;
-
-my $len0 = 0;
-my $len1 = 0;
-
-my $man  = 0;
-my $help = 0;
 
 GetOptions(
-    'help|?'     => \$help,
-    'man'        => \$man,
-    'i|input=s'  => \$lavfile,
-    'o|output=s' => \$outfile,
-    '0|len0=i'   => \$len0,
-    '1|len1=i'   => \$len1,
-) or pod2usage(2);
-
-pod2usage(1) if $help;
-pod2usage( -exitstatus => 0, -verbose => 2 ) if $man;
+    'help|?' => sub { HelpMessage(0) },
+    'i|input=s'  => \my $lavfile,
+    'o|output=s' => \my $outfile,
+    '0|len0=i'   => \(my $len0 = 0),
+    '1|len1=i'   => \(my $len1 = 0),
+) or HelpMessage(1);
 
 #----------------------------------------------------------#
 # now run!

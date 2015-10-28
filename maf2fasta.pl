@@ -3,60 +3,58 @@ use strict;
 use warnings;
 use autodie;
 
-use Getopt::Long;
-use Pod::Usage;
+use Getopt::Long qw(HelpMessage);
+use FindBin;
 use YAML qw(Dump Load DumpFile LoadFile);
-
-use File::Spec;
-use File::Find::Rule;
-use File::Basename;
-use IO::Zlib;
 
 use MCE;
 
+use File::Find::Rule;
+use IO::Zlib;
+
 use AlignDB::Stopwatch;
-use AlignDB::Util qw(:all);
 
 #----------------------------------------------------------#
 # GetOpt section
 #----------------------------------------------------------#
-my $in_dir = '.';    # Specify location here
-my $out_dir;         # Specify output dir here
-my $length = 1000;   # Set the threshold of alignment length
-my $subset;          # get sequences of listed names, seperated by comma
 
-# run in parallel mode
-my $parallel = 1;
+=head1 NAME
 
-my $gzip;            # open .gz
+maf2fasta.pl - convert maf to fasta
 
-my $man  = 0;
-my $help = 0;
+=head1 SYNOPSIS
+
+    perl maf2fasta.pl --in <dir or file> [options]
+      Options:
+        --help              brief help message
+        --man               full documentation
+        --in                maf files' location
+        --out               output location
+        --length            the threshold of alignment length, default is [1000]
+        --parallel          run in parallel mode
+        --subset            get sequences of listed names, seperated by comma
+        --gzip
+
+=cut
 
 GetOptions(
-    'help|?'      => \$help,
-    'man'         => \$man,
-    'i|in_dir=s'  => \$in_dir,
-    'o|out_dir=s' => \$out_dir,
-    'l|length=i'  => \$length,
-    'subset=s'    => \$subset,
-    'parallel=i'  => \$parallel,
-    'gzip'        => \$gzip,
-) or pod2usage(2);
-
-pod2usage(1) if $help;
-pod2usage( -exitstatus => 0, -verbose => 2 ) if $man;
+    'help|?' => sub { HelpMessage(0) },
+    'in_dir|i=s' => \( my $in_dir = '.' ),
+    'out_dir|o=s' => \my $out_dir,
+    'length|l=i'  => \( my $length = 1000 ),
+    'subset=s'    => \my $subset,
+    'parallel=i'  => \( my $parallel = 1 ),
+    'gzip'        => \my $gzip,
+) or HelpMessage(1);
 
 #----------------------------------------------------------#
 # Init
 #----------------------------------------------------------#
 unless ($out_dir) {
-    $out_dir = File::Spec->rel2abs($in_dir) . "_fasta";
+    $out_dir = path($in_dir)->stringify . "_fasta";
     $out_dir = $out_dir . "_$subset" if $subset;
 }
-if ( !-e $out_dir ) {
-    mkdir $out_dir, 0777;
-}
+path($out_dir)->mkpath;
 
 #----------------------------------------------------------#
 # Search for all files
@@ -88,7 +86,7 @@ my $worker = sub {
         $in_fh = IO::Zlib->new( $infile, "rb" );
     }
 
-    my $outfile = basename($infile);
+    my $outfile = path($infile)->basename;
     $outfile = $out_dir . "/$outfile" . ".fas";
     open my $out_fh, ">", $outfile;
 
@@ -103,8 +101,7 @@ ALN: while ( my $line = <$in_fh> ) {
             my @names;
             my $info_of = {};
             for my $sline (@slines) {
-                my ( $s, $src, $start, $size, $strand, $srcsize, $text )
-                    = split /\s+/, $sline;
+                my ( $s, $src, $start, $size, $strand, $srcsize, $text ) = split /\s+/, $sline;
 
                 my ( $species, $chr_name ) = split /\./, $src;
                 $chr_name = $species if !defined $chr_name;
@@ -147,8 +144,8 @@ ALN: while ( my $line = <$in_fh> ) {
             $content .= $line;
         }
         else {                         # a, i, e, q lines
-                # just ommit it
-                # see http://genome.ucsc.edu/FAQ/FAQformat.html#format5
+                                       # just omits it
+                                       # see http://genome.ucsc.edu/FAQ/FAQformat.html#format5
         }
     }
 
@@ -175,21 +172,3 @@ $stopwatch->block_message( "All files have been processed.", "duration" );
 exit;
 
 __END__
-
-=head1 NAME
-
-    maf2fasta.pl - convert maf to fasta
-
-=head1 SYNOPSIS
-    perl maf2fasta.pl --in G:/S288CvsRM11
-
-    maf2fasta.pl [options]
-      Options:
-        --help              brief help message
-        --man               full documentation
-        --in                maf files' location
-        --out               output location
-        --length            length threshold
-        --parallel          run in parallel mode
-
-=cut

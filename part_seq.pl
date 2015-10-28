@@ -1,40 +1,52 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use autodie;
 
-use Getopt::Long;
-use Pod::Usage;
+use Getopt::Long qw(HelpMessage);
+use FindBin;
+use YAML qw(Dump Load DumpFile LoadFile);
 
 use File::Find::Rule;
-use Path::Class;
-use AlignDB::Util qw(:all);
+use Path::Tiny;
 
 #----------------------------------------------------------#
 # GetOpt section
 #----------------------------------------------------------#
-my $in_dir;
-my $out_dir;
 
-my $chunk_size = 10_010_000;
-my $overlap    = 10_000;
+=head1 NAME
 
-my $wrap_length = 50;
+part_seq.pl - Partitions a set of sequences by size
 
-my $man  = 0;
-my $help = 0;
+=head1 SYNOPSIS
+
+    perl part_seq.pl -i t\S288C -o t\S288C_parted -chunk 500000
+    perl part_seq.pl -i t\RM11 -o t\parted -chunk 500000
+    
+    
+    perl part_seq.pl -i d:\data\alignment\mouse17\C57BL_6N_Mouse_Genome.fa\ -o d:\data\alignment\mouse17\C57BL_6N_parted -chunk 10010000 -overlap 10000
+    perl part_seq.pl -i d:\data\alignment\mouse17\A_J_Mouse_Genome.fa\ -o d:\data\alignment\mouse17\A_J_parted -chunk 10000000 -overlap 0
+
+=head1 DESCRIPTION
+
+Blastz will take the first sequence in target fasta file and all sequences in query fasta file.
+
+So if there are mutiple query files, the program uses the largest one. And all target files in
+dir_target will be processed.
+
+So, if there are combined fasta files and multi fasta files coexisting in the target directory, just
+delete the axt file matched with the combined fasta filename.
+
+=cut
 
 GetOptions(
-    'help|?'        => \$help,
-    'man'           => \$man,
-    'i|in_dir=s'    => \$in_dir,
-    'o|out_dir=s'   => \$out_dir,
-    'chunk_size=i'  => \$chunk_size,
-    'overlap=i'     => \$overlap,
-    'wrap_length=i' => \$wrap_length,
-) or pod2usage(2);
-
-pod2usage(1) if $help;
-pod2usage( -exitstatus => 0, -verbose => 2 ) if $man;
+    'help|?'      => sub { HelpMessage(0) },
+    'i|in_dir=s'  => \my $in_dir,
+    'o|out_dir=s' => \my $out_dir,
+    'chunk_size=i'  => \( my $chunk_size  = 10_010_000 ),
+    'overlap=i'     => \( my $overlap     = 10_000 ),
+    'wrap_length=i' => \( my $wrap_length = 60 ),
+) or HelpMessage(1);
 
 #----------------------------------------------------------#
 # now run!
@@ -72,8 +84,7 @@ for my $file (@files) {
         if ( $size > $chunk_size + $overlap ) {
 
             # break it up
-            my $intervalsRef
-                = overlappingIntervals( 0, $size, $chunk_size, $overlap );
+            my $intervalsRef = overlappingIntervals( 0, $size, $chunk_size, $overlap );
             for my $i ( @{$intervalsRef} ) {
                 my ( $start, $end ) = @{$i};
                 write_empty_file( $out_dir, $new_name, $start, $end );
@@ -146,43 +157,4 @@ sub write_empty_file {
 
 exit;
 
-=head1 NAME
-
-    part_seq.pl - Partitions a set of sequences by size
-
-=head1 SYNOPSIS
-
-    perl part_seq.pl -i t\S288C -o t\S288C_parted -chunk 500000
-    perl part_seq.pl -i t\RM11 -o t\parted -chunk 500000
-    
-    
-    perl part_seq.pl -i d:\data\alignment\mouse17\C57BL_6N_Mouse_Genome.fa\ -o d:\data\alignment\mouse17\C57BL_6N_parted -chunk 10010000 -overlap 10000
-    perl part_seq.pl -i d:\data\alignment\mouse17\A_J_Mouse_Genome.fa\ -o d:\data\alignment\mouse17\A_J_parted -chunk 10000000 -overlap 0
-
-=head1 OPTIONS
-
-=over 4
-
-=item B<-help>
-
-Print a brief help message and exits.
-
-=item B<-man>
-
-Prints the manual page and exits.
-
-=back
-
-=head1 DESCRIPTION
-
-Blastz will take the first sequence in target fasta file and all sequences in
-query fasta file.
-
-So if there are mutiple query files, the program uses the largest one. And all
-target files in dir_target will be processed.
-
-So, if there are combined fasta files and multi fasta files coexisting in the
-target directory, just delete the axt file matched with the combined fasta
-filename.
-
-=cut
+__END__

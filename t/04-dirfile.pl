@@ -8,7 +8,7 @@ my $cmd;
 
 $cmd .= "perl $FindBin::Bin/../bz.pl";
 $cmd .= " -dt $FindBin::Bin/S288C";
-$cmd .= " -dq $FindBin::Bin/RM11/rm11.fa";
+$cmd .= " -dq $FindBin::Bin/RM11/RM11.fa";
 $cmd .= " -dl $FindBin::Bin/S288CvsRM11_df";
 
 print $cmd, "\n";

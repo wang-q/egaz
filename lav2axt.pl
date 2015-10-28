@@ -1,33 +1,37 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use autodie;
 
-use Getopt::Long;
-use Pod::Usage;
+use Getopt::Long qw(HelpMessage);
+use FindBin;
 use YAML qw(Dump Load DumpFile LoadFile);
 
-use AlignDB::Util qw(:all);
-
-use File::Slurp;
+use Path::Tiny;
 
 #----------------------------------------------------------#
 # GetOpt section
 #----------------------------------------------------------#
-my $lavfile;
-my $output;
 
-my $man  = 0;
-my $help = 0;
+=head1 NAME
+
+lav2axt.pl - convert .lav files to .axt files
+
+=head1 SYNOPSIS
+
+    perl lav2axt.pl -l <lavfile(s)> -o <output> [options]
+      Options:
+        --help          -?          brief help message
+        --lavfile       -l  STR
+        --output        -o  STR
+
+=cut
 
 GetOptions(
-    'help|?'      => \$help,
-    'man'         => \$man,
-    'l|lavfile=s' => \$lavfile,
-    'o|output=s'  => \$output,
-) or pod2usage(2);
-
-pod2usage(1) if $help;
-pod2usage( -exitstatus => 0, -verbose => 2 ) if $man;
+    'help|?'      => sub { HelpMessage(0) },
+    'lavfile|l=s' => \my $lavfile,
+    'outputLo=s'  => \my $output,
+) or HelpMessage(1);
 
 $lavfile =~ s/\\/\//g;
 unless ($output) {
@@ -38,7 +42,7 @@ unless ($output) {
 #----------------------------------------------------------#
 # now run!
 #----------------------------------------------------------#
-my $lav_content = read_file($lavfile);
+my $lav_content = path($lavfile)->slurp;
 my @lavs = split /\#\:lav/, $lav_content;
 shift @lavs;    # .lav file start with #:lav
 my $d_stanza = shift @lavs;    # Not needed by this program
@@ -53,7 +57,7 @@ for my $lav (@lavs) {
     #----------------------------#
     $lav =~ /s {\s+(.+?)\s+}/s;
     my $s_stanza = $1;
-    my @s_lines = $s_stanza =~ /(.+ \s+ \d+ \s+ \d+ \s+ \d+ \s+ \d+)/gx;
+    my @s_lines  = $s_stanza =~ /(.+ \s+ \d+ \s+ \d+ \s+ \d+ \s+ \d+)/gx;
     unless ( ( scalar @s_lines ) == 2 ) { die "s-stanza error.\n"; }
 
     $s_lines[0] =~ /\s*\"?(.+?)\-?\"? \s+ \d+ \s+ \d+ \s+ (\d+) \s+ (\d+)/x;
@@ -67,7 +71,7 @@ for my $lav (@lavs) {
     #----------------------------#
     $lav =~ /h {\s+(.+?)\s+}/s;
     my $h_stanza = $1;
-    my @h_lines = $h_stanza =~ /(.+)/g;
+    my @h_lines  = $h_stanza =~ /(.+)/g;
     unless ( ( scalar @h_lines ) == 2 ) { die "h-stanza error.\n"; }
 
     #----------------------------#
@@ -127,18 +131,11 @@ for my $lav (@lavs) {
             }
             my $length_target = $t_end - $t_begin + 1 + ( length $q_del );
             my $length_query  = $q_end - $q_begin + 1 + ( length $t_del );
-            $alignment_target .= (
-                substr $t_seq,
-                ( $t_begin - 1 - ( length $q_del ) ),
-                $length_target
-            );
-            $alignment_query .= (
-                substr $q_seq,
-                ( $q_begin - 1 - ( length $t_del ) ),
-                $length_query
-            );
-            if ( ( length $alignment_query ) ne ( length $alignment_target ) )
-            {
+            $alignment_target
+                .= ( substr $t_seq, ( $t_begin - 1 - ( length $q_del ) ), $length_target );
+            $alignment_query
+                .= ( substr $q_seq, ( $q_begin - 1 - ( length $t_del ) ), $length_query );
+            if ( ( length $alignment_query ) ne ( length $alignment_target ) ) {
                 die "Target length doesn't match query's in the alignment.\n";
             }
             $former_end_target = $t_end;
@@ -188,40 +185,3 @@ close $outfh;
 exit;
 
 __END__
-
-=head1 NAME
-
-    lav2axt.pl - convert .lav files to .axt files
-
-=head1 SYNOPSIS
-
-    lav2axt.pl -l <lavfile(s)> -o <output>
-
-    lav2axt.pl [options]
-      Options:
-        -h, --help              brief help message
-        -m, --man               full documentation
-        -l, --lavfile
-        -o, --output
-
-=head1 OPTIONS
-
-=over 8
-
-=item B<-help>
-
-Print a brief help message and exits.
-
-=item B<-man>
-
-Prints the manual page and exits.
-
-=back
-
-=head1 DESCRIPTION
-
-B<This program> will read the given input file(s) and do someting
-useful with the contents thereof.
-
-=cut
-

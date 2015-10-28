@@ -3,69 +3,68 @@ use strict;
 use warnings;
 use autodie;
 
-use Getopt::Long;
-use Pod::Usage;
+use Getopt::Long qw(HelpMessage);
+use FindBin;
 use YAML qw(Dump Load DumpFile LoadFile);
 
-use File::Spec;
+use MCE;
+
 use File::Find::Rule;
-use List::Util qw(first max maxstr min minstr reduce shuffle sum);
-use List::MoreUtils qw(any all uniq);
 use IO::Zlib;
+use Path::Tiny;
 
 use AlignDB::Stopwatch;
-
-use FindBin;
 
 #----------------------------------------------------------#
 # GetOpt section
 #----------------------------------------------------------#
-my $in_dir;      # Specify location here
-my $out_file;    # Specify output file here
 
-my $sampling;    # random sampling
-my $total_length = 1_000_000;    # when exceed this, quit
+=head1 NAME
 
-my $relaxed_phylip;
-my $wrap = 0;
-my $gzip;                        # open .fas.gz
+concat_fasta.pl - concatenate blocked fasta files
 
-my $man  = 0;
-my $help = 0;
+=head1 SYNOPSIS
+
+    perl concat_fasta.pl [options]
+      Options:
+        --help          -?          brief help message
+        --in_dir        -i  STR     fasta files' location
+        --out_file      -o  STR     output file
+        --sampling      -s          random sampling
+        --total_length  -l  INT     when exceed this, quit. Default is [1_000_000]
+        --relaxed       -rp         output relaxed phylip instead of fasta
+        --wrap          -w  INT     long line wrap length
+        --gzip                      input files are gzipped. .fas.gz
+
+    perl concat_fasta.pl --in_dir S288CvsRM11 -o S288CvsRM11.fasta
+
+=cut
 
 GetOptions(
-    'help|?'              => \$help,
-    'man'                 => \$man,
-    'i|in_dir=s'          => \$in_dir,
-    'o|out_file=s'        => \$out_file,
-    's|sampling'          => \$sampling,
-    'l|total_length=i'    => \$total_length,
-    'p|rp|relaxed_phylip' => \$relaxed_phylip,
-    'w|wrap=i'            => \$wrap,
-    'gzip'                => \$gzip,
-) or pod2usage(2);
-
-pod2usage(1) if $help;
-pod2usage( -exitstatus => 0, -verbose => 2 ) if $man;
+    'help|?'       => sub { HelpMessage(0) },
+    'in_dir|i=s'   => \my $in_dir,
+    'out_file|o=s' => \my $out_file,
+    'sampling|s'   => \my $sampling,
+    'total|l=i' => \( my $total_length = 1_000_000 ),
+    'relaxed|rp' => \my $relaxed_phylip,
+    'wrap|w=i'   => \( my $wrap = 0 ),
+    'gzip'       => \my $gzip,
+) or HelpMessage(1);
 
 #----------------------------------------------------------#
 # Search for all files
 #----------------------------------------------------------#
 unless ($out_file) {
-    my @dirs = File::Spec->splitdir( File::Spec->rel2abs($in_dir) );
-    $dirs[-1] .= $relaxed_phylip ? ".concat.phy" : ".concat.fas";
-    $out_file = File::Spec->catfile(@dirs);
+    $out_file = path($in_dir)->stringify . ( $relaxed_phylip ? ".concat.phy" : ".concat.fas" );
 }
 
 my @files;
 if ( !$gzip ) {
-    @files = sort File::Find::Rule->file->name( '*.fa', '*.fas', '*.fasta' )
-        ->in($in_dir);
+    @files = sort File::Find::Rule->file->name( '*.fa', '*.fas', '*.fasta' )->in($in_dir);
     printf "\n----Total .fas Files: %4s----\n\n", scalar @files;
 }
 if ( scalar @files == 0 or $gzip ) {
-    @files = sort File::Find::Rule->file->name( '*.fa.gz', '*.fas.gz',
-        '*.fasta.gz' )->in($in_dir);
+    @files = sort File::Find::Rule->file->name( '*.fa.gz', '*.fas.gz', '*.fasta.gz' )->in($in_dir);
     printf "\n----Total .fas.gz Files: %4s----\n\n", scalar @files;
     $gzip++;
 }
@@ -116,8 +115,7 @@ else {
         print {$out_fh} ">$name\n";
         if ($wrap) {
             for ( my $pos = 0; $pos < $seq_length; $pos += $wrap ) {
-                print {$out_fh} substr( $all_seq_of->{$name}, $pos, $wrap ),
-                    "\n";
+                print {$out_fh} substr( $all_seq_of->{$name}, $pos, $wrap ), "\n";
             }
         }
         else {
@@ -229,19 +227,3 @@ sub gather_seq {
 }
 
 __END__
-
-=head1 NAME
-
-    concat_fasta.pl - realign fasta file
-
-=head1 SYNOPSIS
-    perl concat_fasta.pl --in_dir G:/S288CvsRM11 -o S288CvsRM11.fasta
-
-    concat_fasta.pl [options]
-      Options:
-        --help              brief help message
-        --man               full documentation
-        --in_dir            fasta files' location
-        --out_file          output location
-
-=cut

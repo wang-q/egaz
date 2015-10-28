@@ -3,65 +3,61 @@ use strict;
 use warnings;
 use autodie;
 
-use Getopt::Long;
-use Pod::Usage;
+use Getopt::Long qw(HelpMessage);
+use FindBin;
 use YAML qw(Dump Load DumpFile LoadFile);
-
-use Time::Duration;
-use File::Find::Rule;
-use File::Basename;
-use File::Remove qw(remove);
-use Path::Class;
-use String::Compare;
 
 use MCE;
 
-use AlignDB::Util qw(:all);
-
-use FindBin;
+use File::Find::Rule;
+use File::Remove qw(remove);
+use Path::Tiny;
+use Time::Duration;
 
 #----------------------------------------------------------#
 # GetOpt section
 #----------------------------------------------------------#
-# executable file location
-my $kent_bin = "~/bin/x86_64";
 
-# dirs
-my ( $dir_target, $dir_query );
-my $dir_lav = ".";
+=head1 NAME
 
-# Human18vsChimp2 use loose and 1000
-# Human19vsChimp3 use medium and 5000
-# axtChain linearGap
-# loose is chicken/human linear gap costs.
-# medium is mouse/human linear gap costs.
-# Or specify a piecewise linearGap tab delimited file.
-my $linearGap = "loose";
+lpcna.pl - lav-psl-chain-net-axt pipeline
 
-# axtChain minScore
-# Minimum score for chain
-my $minScore = "1000";
+=head1 SYNOPSIS
 
-# run in parallel mode
-my $parallel = 1;
+    perl lpcna.pl -dt <target> -dq <query> [options]
+      Options:
+        --help          -?          brief help message
 
-my $man  = 0;
-my $help = 0;
+      Running mode
+        --parallel      -p  INT     run in parallel mode, [1]
+
+      Fasta dirs  
+        --dir_target    -dt STR     dir of target fasta files
+        --dir_query     -dq STR     dir of query fasta files
+
+      Output .lav and .axt
+        --dir_lav       -dl STR     where .lav and .axt files stores
+
+      Chaining options
+        --linearGap     -l  STR     axtChain linearGap, loose or medium, default is [loose]
+                                    Human18vsChimp2 use loose and 1000
+                                    Human19vsChimp3 use medium and 5000
+                                    loose is chicken/human linear gap costs.
+                                    medium is mouse/human linear gap costs.
+                                    Or specify a piecewise linearGap tab delimited file.
+        --minScore      -m  INT     Minimum score for axtChain
+
+=cut
 
 GetOptions(
-    'help|?'          => \$help,
-    'man'             => \$man,
-    'bin|kent_bin=s'  => \$kent_bin,
-    'dt|dir_target=s' => \$dir_target,
-    'dq|dir_query=s'  => \$dir_query,
-    'dl|dir_lav=s'    => \$dir_lav,
-    'l|linearGap=i'   => \$linearGap,
-    'm|minScore=i'    => \$minScore,
-    'p|parallel=i'    => \$parallel,
-) or pod2usage(2);
-
-pod2usage(1) if $help;
-pod2usage( -exitstatus => 0, -verbose => 2 ) if $man;
+    'help|?'          => sub { HelpMessage(0) },
+    'dir_target|dt=s' => \my $dir_target,
+    'dir_query|dq=s'  => \my $dir_query,
+    'dir_lav|dl=s'  => \( my $dir_lav   = '.' ),
+    'parallel|p=i'  => \( my $parallel  = 1 ),
+    'linearGap|l=i' => \( my $linearGap = "loose" ),
+    'minScore|m=i'  => \( my $minScore  = "1000" ),
+) or HelpMessage(1);
 
 #----------------------------------------------------------#
 # Init
@@ -70,19 +66,11 @@ my $start_time = time;
 print "\n", "=" x 30, "\n";
 print "Processing...\n";
 
-# make dirs
-unless ( -e $dir_lav ) {
-    mkdir $dir_lav, 0777
-        or die "Cannot create \"$dir_lav\" directory: $!";
-}
-
+# make lav dir
 my $dir_net    = "$dir_lav/net";
 my $dir_axtnet = "$dir_lav/axtNet";
-for ( $dir_net, $dir_axtnet ) {
-    unless ( -e $_ ) {
-        mkdir $_, 0777
-            or die "Cannot create \"$_\" directory: $!";
-    }
+for ( $dir_lav, $dir_net, $dir_axtnet ) {
+    path($_)->mkpath;
 }
 
 #----------------------------------------------------------#
@@ -93,16 +81,10 @@ for ( $dir_net, $dir_axtnet ) {
     # faSize - print total base count in fa files.
     # usage:
     #   faSize file(s).fa
-    my $cmd
-        = "$kent_bin/faSize -detailed"
-        . " $dir_target/*.fa"
-        . " > $dir_target/chr.sizes";
+    my $cmd = "faSize -detailed" . " $dir_target/*.fa" . " > $dir_target/chr.sizes";
     exec_cmd($cmd) if !-e "$dir_target/chr.sizes";
 
-    $cmd
-        = "$kent_bin/faSize -detailed"
-        . " $dir_query/*.fa"
-        . " > $dir_query/chr.sizes";
+    $cmd = "faSize -detailed" . " $dir_query/*.fa" . " > $dir_query/chr.sizes";
     exec_cmd($cmd) if !-e "$dir_query/chr.sizes";
 
     # use combined .2bit file instead of dir of nibs
@@ -110,13 +92,10 @@ for ( $dir_net, $dir_axtnet ) {
     # faToTwoBit - Convert DNA from fasta to 2bit format
     # usage:
     #    faToTwoBit in.fa [in2.fa in3.fa ...] out.2bit
-    $cmd
-        = "$kent_bin/faToTwoBit"
-        . " $dir_target/*.fa"
-        . " $dir_target/chr.2bit";
+    $cmd = "faToTwoBit" . " $dir_target/*.fa" . " $dir_target/chr.2bit";
     exec_cmd($cmd) if !-e "$dir_target/chr.2bit";
 
-    $cmd = "$kent_bin/faToTwoBit" . " $dir_query/*.fa" . " $dir_query/chr.2bit";
+    $cmd = "faToTwoBit" . " $dir_query/*.fa" . " $dir_query/chr.2bit";
     exec_cmd($cmd) if !-e "$dir_query/chr.2bit";
 
     print "\n";
@@ -139,11 +118,11 @@ for ( $dir_net, $dir_axtnet ) {
             my $output = $file;
             $output =~ s/lav$/psl/;
 
-            # lavToPsl - Convert blastz lav to psl format
+            # lavToPsl - Convert lav to psl format
             # usage:
             #   lavToPsl in.lav out.psl
             print "Run lavToPsl...\n";
-            my $cmd = "$kent_bin/lavToPsl" . " $file" . " $output";
+            my $cmd = "lavToPsl" . " $file" . " $output";
             exec_cmd($cmd);
         }
     );
@@ -168,27 +147,27 @@ for ( $dir_net, $dir_axtnet ) {
             my $output = $file;
             $output =~ s/psl$/chain/;
 
-        # axtChain - Chain together axt alignments.
-        # usage:
-        #   axtChain -linearGap=loose in.axt tNibDir qNibDir out.chain
-        # Where tNibDir/qNibDir are either directories full of nib files, or the
-        # name of a .2bit file
-        #
-        # chainAntiRepeat - Get rid of chains that are primarily the results of
-        # repeats and degenerate DNA
-        # usage:
-        #    chainAntiRepeat tNibDir qNibDir inChain outChain
-        # options:
-        #    -minScore=N - minimum score (after repeat stuff) to pass
-        #    -noCheckScore=N - score that will pass without checks (speed tweak)
+            # axtChain - Chain together axt alignments.
+            # usage:
+            #   axtChain -linearGap=loose in.axt tNibDir qNibDir out.chain
+            # Where tNibDir/qNibDir are either directories full of nib files, or the
+            # name of a .2bit file
+            #
+            # chainAntiRepeat - Get rid of chains that are primarily the results of
+            # repeats and degenerate DNA
+            # usage:
+            #    chainAntiRepeat tNibDir qNibDir inChain outChain
+            # options:
+            #    -minScore=N - minimum score (after repeat stuff) to pass
+            #    -noCheckScore=N - score that will pass without checks (speed tweak)
             print "Run axtChain...\n";
             my $cmd
-                = "$kent_bin/axtChain -minScore=$minScore -linearGap=$linearGap -psl"
+                = "axtChain -minScore=$minScore -linearGap=$linearGap -psl"
                 . " $file"
                 . " $dir_target/chr.2bit"
                 . " $dir_query/chr.2bit"
                 . " stdout"
-                . " | $kent_bin/chainAntiRepeat"
+                . " | chainAntiRepeat"
                 . " $dir_target/chr.2bit"
                 . " $dir_query/chr.2bit"
                 . " stdin"
@@ -203,17 +182,14 @@ for ( $dir_net, $dir_axtnet ) {
     # chainMergeSort - Combine sorted files into larger sorted file
     # usage:
     #   chainMergeSort file(s)
-    my $cmd
-        = "$kent_bin/chainMergeSort"
-        . " $dir_lav/*.chain"
-        . " > $dir_lav/all.chain";
+    my $cmd = "chainMergeSort" . " $dir_lav/*.chain" . " > $dir_lav/all.chain";
     exec_cmd($cmd);
 
     # chainPreNet - Remove chains that don't have a chance of being netted
     # usage:
     #   chainPreNet in.chain target.sizes query.sizes out.chain
     $cmd
-        = "$kent_bin/chainPreNet"
+        = "chainPreNet"
         . " $dir_lav/all.chain"
         . " $dir_target/chr.sizes"
         . " $dir_query/chr.sizes"
@@ -236,15 +212,12 @@ for ( $dir_net, $dir_axtnet ) {
     # usage:
     #   netSyntenic in.net out.net
     my $cmd
-        = "$kent_bin/chainNet -minSpace=1"
+        = "chainNet -minSpace=1"
         . " $dir_lav/all.pre.chain"
         . " $dir_target/chr.sizes"
         . " $dir_query/chr.sizes"
         . " stdout"    # $dir_lav/target.chainnet
-        . " /dev/null"
-        . " | $kent_bin/netSyntenic"
-        . " stdin"
-        . " $dir_lav/noClass.net";
+        . " /dev/null" . " | netSyntenic" . " stdin" . " $dir_lav/noClass.net";
     exec_cmd($cmd);
 
     # netChainSubset - Create chain file with subset of chains that appear in
@@ -267,10 +240,10 @@ for ( $dir_net, $dir_axtnet ) {
     # usage:
     #    chainStitchId in.chain out.chain
     $cmd
-        = "$kent_bin/netChainSubset -verbose=0 $dir_lav/noClass.net"
+        = "netChainSubset -verbose=0 $dir_lav/noClass.net"
         . " $dir_lav/all.chain"
         . " stdout"
-        . " | $kent_bin/chainStitchId"
+        . " | chainStitchId"
         . " stdin"
         . " $dir_lav/over.chain";
     exec_cmd($cmd);
@@ -278,7 +251,7 @@ for ( $dir_net, $dir_axtnet ) {
     # netSplit - Split a genome net file into chromosome net files
     # usage:
     #   netSplit in.net outDir
-    $cmd = "$kent_bin/netSplit" . " $dir_lav/noClass.net" . " $dir_net";
+    $cmd = "netSplit" . " $dir_lav/noClass.net" . " $dir_net";
     exec_cmd($cmd);
 
     print "\n";
@@ -298,7 +271,7 @@ for ( $dir_net, $dir_axtnet ) {
             my ( $self, $chunk_ref, $chunk_id ) = @_;
 
             my $file   = $chunk_ref->[0];
-            my $output = basename($file);
+            my $output = path($file)->basename;
             $output .= ".axt";
 
             # netToAxt - Convert net (and chain) to axt.
@@ -313,13 +286,13 @@ for ( $dir_net, $dir_axtnet ) {
             #   axtSort in.axt out.axt
             print "Run netToAxt...\n";
             my $cmd
-                = "$kent_bin/netToAxt"
+                = "netToAxt"
                 . " $file"
                 . " $dir_lav/all.pre.chain"
                 . " $dir_target/chr.2bit"
                 . " $dir_query/chr.2bit"
                 . " stdout"
-                . " | $kent_bin/axtSort stdin"
+                . " | axtSort stdin"
                 . " $dir_axtnet/$output";
             exec_cmd($cmd);
             print ".axt file generated.\n\n";
@@ -336,8 +309,7 @@ for ( $dir_net, $dir_axtnet ) {
     chdir $dir_lav;
     my $cmd;
 
-    $cmd = "tar -czvf lav.tar.gz *.lav"
-        ;    # bsdtar (mac) doesn't support  --remove-files
+    $cmd = "tar -czvf lav.tar.gz *.lav";    # bsdtar (mac) doesn't support  --remove-files
     if ( !-e "$dir_lav/lav.tar.gz" ) {
         exec_cmd($cmd);
         remove("*.lav");
@@ -387,40 +359,3 @@ sub exec_cmd {
 }
 
 __END__
-
-=head1 NAME
-
-    lpcna.pl - lav-psl-chain-net-axt pipeline
-
-=head1 SYNOPSIS
-
-    lpcna.pl -dt <one target dir or file> -dq <one query dir or file> [options]
-      Options:
-        -?, --help              brief help message
-        --man                   full documentation
-
-      Run in parallel mode
-        -p, --parallel          number of child processes
-
-      Fasta dirs (don't pass fasta file here, need directory)
-        -dt, --dir_target       dir of target fasta files
-        -dq, --dir_query        dir of query fasta files
-
-      Output .lav and .axt
-        -dl, --dir_lav          where .lav and .axt files storess
-
-=head1 DESCRIPTION
-
--p 8
-Runtime 3 minutes and 24 seconds.
-
--p 4
-Runtime 3 minutes and 28 seconds.
-
--p 2
-Runtime 4 minutes and 28 seconds.
-
--p 1
-Runtime 8 minutes and 25 seconds.
-
-=cut

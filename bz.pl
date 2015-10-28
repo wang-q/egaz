@@ -9,10 +9,10 @@ use YAML qw(Dump Load DumpFile LoadFile);
 
 use MCE;
 
-use Time::Duration;
 use File::Find::Rule;
 use Path::Tiny;
 use String::Compare;
+use Time::Duration;
 
 use lib "$FindBin::RealBin/lib";
 use MyUtil qw(read_sizes);
@@ -41,7 +41,7 @@ bz.pl - execute lastz and lav2axt against two directories
 
       Output .lav and .axt
         --dir_lav       -dl STR     where .lav and .axt files stores
-        
+
       Inputs are parted or not
         --t_parted      -tp         use parted seqs, default is false
         --q_parted  `   -qp
@@ -72,10 +72,10 @@ bz.pl - execute lastz and lav2axt against two directories
 
       Speedup parameters:
         -Z                  INT     increment between successive words
-    
+
     perl part_seq.pl -in t/S288C -out t/S288C_parted -chunk 500000
     perl bz.pl -dt t/S288C_parted -dq t/RM11/RM11.fa -s set01 -dl t/S288CvsRM11_df_tp -tp -p 1
-    
+
 =head1 DESCRIPTION
 
 Lastz will take the first sequence in target fasta file and all sequences in query fasta file.

@@ -3,58 +3,55 @@ use strict;
 use warnings;
 use autodie;
 
-use Getopt::Long;
-use Pod::Usage;
+use Getopt::Long qw(HelpMessage);
+use FindBin;
 use YAML qw(Dump Load DumpFile LoadFile);
-
-use Time::Duration;
-use File::Find::Rule;
-use File::Spec;
-use File::Basename;
-use File::Remove qw(remove);
-use Path::Class;
-use String::Compare;
 
 use MCE;
 
-use AlignDB::Util qw(:all);
-
-use FindBin;
+use File::Find::Rule;
+use File::Remove qw(remove);
+use Path::Tiny;
+use String::Compare;
+use Time::Duration;
 
 #----------------------------------------------------------#
 # GetOpt section
 #----------------------------------------------------------#
-# executable file location
-my $kent_bin  = "~/bin/x86_64";
-my $phast_bin = "~/share/phast/bin";
 
-# dirs
-my ( $dir_target, $dir_query );
-my $dir_lav = ".";
+=head1 NAME
 
-# .synNet.maf or .net.maf
-my $syn;
+amp.pl - axt-maf-phast pipeline
 
-# run in parallel mode
-my $parallel = 1;
+=head1 SYNOPSIS
 
-my $man  = 0;
-my $help = 0;
+    perl amp.pl -dt <target> -dq <query> [options]
+      Options:
+        --help          -?          brief help message
+
+      Running mode
+        --parallel      -p  INT     run in parallel mode, [1]
+
+      Fasta dirs  
+        --dir_target    -dt STR     dir of target fasta files
+        --dir_query     -dq STR     dir of query fasta files
+
+      Output .lav and .axt
+        --dir_lav       -dl STR     where .lav and .axt files stores
+
+      Chaining options
+        --syn                       .synNet.maf or .net.maf
+
+=cut
 
 GetOptions(
-    'help|?'            => \$help,
-    'man'               => \$man,
-    'bin|kent_bin=s'    => \$kent_bin,
-    'phast|phast_bin=s' => \$phast_bin,
-    'dt|dir_target=s'   => \$dir_target,
-    'dq|dir_query=s'    => \$dir_query,
-    'dl|dir_lav=s'      => \$dir_lav,
-    'syn'               => \$syn,
-    'p|parallel=i'      => \$parallel,
-) or pod2usage(2);
-
-pod2usage(1) if $help;
-pod2usage( -exitstatus => 0, -verbose => 2 ) if $man;
+    'help|?'          => sub { HelpMessage(0) },
+    'dir_target|dt=s' => \my $dir_target,
+    'dir_query|dq=s'  => \my $dir_query,
+    'dir_lav|dl=s' => \( my $dir_lav  = '.' ),
+    'parallel|p=i' => \( my $parallel = 1 ),
+    'syn'          => \my $syn,
+) or HelpMessage(1);
 
 #----------------------------------------------------------#
 # Init
@@ -66,18 +63,18 @@ print "Processing...\n";
 my $dir_synnet = "$dir_lav/synNet";
 my $dir_chain  = "$dir_lav/chain";
 for ( $dir_synnet, $dir_chain ) {
-    mkdir $_, 0777 unless -e $_;
+        path($_)->mkpath;
 }
 
-my $t_prefix = basename($dir_target);
-my $q_prefix = basename($dir_query);
+my $t_prefix = path($dir_target)->basename;
+my $q_prefix = path($dir_query)->basename;
 
 #----------------------------------------------------------#
 # maf section
 #----------------------------------------------------------#
 if ( !$syn ) {
     my $dir_mafnet = "$dir_lav/mafNet";
-    mkdir $dir_mafnet, 0777 unless -e $dir_mafnet;
+    path($dir_mafnet)->mkpath;
 
     #----------------------------#
     # axtToMaf section
@@ -92,8 +89,8 @@ if ( !$syn ) {
         my ( $self, $chunk_ref, $chunk_id ) = @_;
 
         my $file = $chunk_ref->[0];
-        my $output = basename( $file, ".axt", ".axt.gz" );
-        $output = File::Spec->catfile( $dir_mafnet, "$output.maf" );
+        my $output = path( $file)->basename( ".axt", ".axt.gz" );
+        $output = path( $dir_mafnet, "$output.maf" )->stringify;
 
         # axtToMaf - Convert from axt to maf format
         # usage:
@@ -111,7 +108,7 @@ if ( !$syn ) {
         #     -scoreZero   - recalculate score if zero
         print "Run axtToMaf...\n";
         my $cmd
-            = "$kent_bin/axtToMaf"
+            = "axtToMaf"
             . " -tPrefix=$t_prefix."
             . " -qPrefix=$q_prefix."
             . " $file"
@@ -129,7 +126,7 @@ if ( !$syn ) {
 }
 else {
     my $dir_mafsynnet = "$dir_lav/mafSynNet";
-    mkdir $dir_mafsynnet, 0777 unless -e $dir_mafsynnet;
+    path($dir_mafsynnet)->mkpath;
 
     #----------------------------#
     # synNetMaf section
@@ -149,11 +146,7 @@ else {
         # the filter, the children are not even considered.
         # usage:
         #    netFilter in.net(s)
-        my $cmd
-            = "$kent_bin/netFilter" . " -syn"
-            . " $files[0]"
-            . " | $kent_bin/netSplit stdin"
-            . " $dir_synnet";
+        my $cmd = "netFilter" . " -syn" . " $files[0]" . " | netSplit stdin" . " $dir_synnet";
         exec_cmd($cmd);
     }
 
@@ -171,7 +164,7 @@ else {
         # options:
         #    -q  - Split on query (default is on target)
         #    -lump=N  Lump together so have only N split files.
-        my $cmd = "$kent_bin/chainSplit" . " $dir_chain" . " $files[0]";
+        my $cmd = "chainSplit" . " $dir_chain" . " $files[0]";
         exec_cmd($cmd);
     }
 
@@ -181,21 +174,21 @@ else {
     my $worker = sub {
         my ( $self, $chunk_ref, $chunk_id ) = @_;
 
-        my $file   = $chunk_ref->[0];
-        my $base   = basename( $file, ".net" );
-        my $output = File::Spec->catfile( $dir_mafsynnet, "$base.synNet.maf" );
-        my $chain_file = File::Spec->catfile( $dir_chain, "$base.chain" );
+        my $file       = $chunk_ref->[0];
+        my $base       = path( $file)->basename( ".net" );
+        my $output     = path( $dir_mafsynnet, "$base.synNet.maf" )->stringify;
+        my $chain_file = path( $dir_chain, "$base.chain" )->stringify;
 
         print "Run netToAxt axtSort axtToMaf...\n";
         my $cmd
-            = "$kent_bin/netToAxt"
+            = "netToAxt"
             . " $file"
             . " $chain_file"
             . " $dir_target/chr.2bit"
             . " $dir_query/chr.2bit"
             . " stdout"
-            . " | $kent_bin/axtSort stdin stdout"
-            . " | $kent_bin/axtToMaf"
+            . " | axtSort stdin stdout"
+            . " | axtToMaf"
             . " -tPrefix=$t_prefix."
             . " -qPrefix=$q_prefix."
             . " stdin"
@@ -231,7 +224,7 @@ else {
             my ( $self, $chunk_ref, $chunk_id ) = @_;
 
             my $file = $chunk_ref->[0];
-            my $cmd = "gzip $file";
+            my $cmd  = "gzip $file";
             exec_cmd($cmd);
         }
     );
@@ -257,43 +250,3 @@ sub exec_cmd {
 }
 
 __END__
-
-=head1 NAME
-
-    amp.pl - axt-maf-phast pipeline
-
-=head1 SYNOPSIS
-
-    amp.pl -dt <one target dir or file> -dq <one query dir or file> [options]
-      Options:
-        -?, --help              brief help message
-        --man                   full documentation
-
-      Run in parallel mode
-        -p, --paralle           number of child processes
-
-      Fasta dirs  
-        -dt, --dir_target       dir of target fasta files
-        -dq, --dir_query        dir of query fasta files
-
-      Output .lav and .axt
-        -dl, --dir_lav          where .lav and .axt files storess
-
-=head1 OPTIONS
-
-=over 4
-
-=item B<-help>
-
-Print a brief help message and exits.
-
-=item B<-man>
-
-Prints the manual page and exits.
-
-=back
-
-=head1 DESCRIPTION
-
-
-=cut

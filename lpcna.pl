@@ -81,10 +81,10 @@ for ( $dir_lav, $dir_net, $dir_axtnet ) {
     # faSize - print total base count in fa files.
     # usage:
     #   faSize file(s).fa
-    my $cmd = "faSize -detailed" . " $dir_target/*.fa" . " > $dir_target/chr.sizes";
+    my $cmd = "faops size" . " $dir_target/*.fa" . " > $dir_target/chr.sizes";
     exec_cmd($cmd) if !-e "$dir_target/chr.sizes";
 
-    $cmd = "faSize -detailed" . " $dir_query/*.fa" . " > $dir_query/chr.sizes";
+    $cmd = "faops size" . " $dir_query/*.fa" . " > $dir_query/chr.sizes";
     exec_cmd($cmd) if !-e "$dir_query/chr.sizes";
 
     # use combined .2bit file instead of dir of nibs

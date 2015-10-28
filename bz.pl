@@ -3,55 +3,94 @@ use strict;
 use warnings;
 use autodie;
 
-use Getopt::Long;
-use Pod::Usage;
+use Getopt::Long qw(HelpMessage);
+use FindBin;
 use YAML qw(Dump Load DumpFile LoadFile);
-
-use Time::Duration;
-use File::Find::Rule;
-use File::Basename;
-use Path::Class;
-use String::Compare;
 
 use MCE;
 
-use AlignDB::Util qw(:all);
+use Time::Duration;
+use File::Find::Rule;
+use Path::Tiny;
+use String::Compare;
 
-use FindBin;
+use lib "$FindBin::RealBin/lib";
+use MyUtil qw(read_sizes);
 
 #----------------------------------------------------------#
 # GetOpt section
 #----------------------------------------------------------#
-# executable file location
-my $path_blastz    = "$FindBin::Bin/blastz";
-my $path_normalize = "perl $FindBin::Bin/normalize_lav.pl";
-my $path_lav2axt   = "perl $FindBin::Bin/lav2axt.pl";
 
-# run in parallel mode
-my $parallel = 1;
+=head1 NAME
 
-# use a specified set to run blastz
-my $specified;
+bz.pl - execute lastz and lav2axt against two directories
 
-# use parted seqs, default is false
-my ( $t_parted, $q_parted );
+=head1 SYNOPSIS
 
-# relationship of target and query is one to one
-my $paired;
+    perl bz.pl -dt <one target dir or file> -dq <one query dir or file> [options]
+      Options:
+        --help          -?          brief help message
 
-# self-alignment
-# http://www.bx.psu.edu/miller_lab/dist/README.lastz-1.01.50/README.lastz-1.01.50.html#ex_self
-my $is_self;
+      Running mode
+        --parallel      -p  INT     run in parallel mode, [1]
+        --noaxt                     don't generate .axt files
 
-# dirs
-my ( $dir_target, $dir_query );
-my $dir_lav = ".";
+      Fasta dirs  
+        --dir_target    -dt STR     dir of target fasta files
+        --dir_query     -dq STR     dir of query fasta files
 
-# don't convert to axt
-my $noaxt = 0;
+      Output .lav and .axt
+        --dir_lav       -dl STR     where .lav and .axt files stores
+        
+      Inputs are parted or not
+        --t_parted      -tp         use parted seqs, default is false
+        --q_parted  `   -qp
 
-# use lastz instead of blastz
-my $lastz = 0;
+      Predefined parameter set:  
+        --specified     -s  STR     use a predefined parameter set
+        
+      Relationship
+        --paired                    relationship of target and query is one to one
+        --is_self                   self-alignment
+                                    http://www.bx.psu.edu/miller_lab/dist/README.lastz-1.01.50/README.lastz-1.01.50.html#ex_self
+
+      Scoring parameters:
+        -O                  INT     gap-open penalty
+        -E                  INT     gap-extension penalty
+        -Q                  INT     matrix file
+
+      Aligning parameters: 
+        -C                  INT     chain option
+        -T                  INT     words option
+        -M                  INT     mask any base in seq1 hit this many times
+
+      Droping hsp parameters:
+        -K                  INT     threshold for MSPs for the first pass
+        -L                  INT     threshold for gapped alignments for the second pass
+        -H                  INT     threshold to be interpolated between alignments
+        -Y                  INT     X-drop parameter for gapped extension
+
+      Speedup parameters:
+        -Z                  INT     increment between successive words
+    
+    perl part_seq.pl -in t/S288C -out t/S288C_parted -chunk 500000
+    perl bz.pl -dt t/S288C_parted -dq t/RM11/RM11.fa -s set01 -dl t/S288CvsRM11_df_tp -tp -p 1
+    
+=head1 DESCRIPTION
+
+Lastz will take the first sequence in target fasta file and all sequences in query fasta file.
+
+So if there are mutiple query files, the program uses the largest one. And all target files in
+dir_target will be processed.
+
+So, if there are combined fasta files and multi fasta files coexisting in the target directory, just
+delete the axt file matched with the combined fasta filename.
+
+Fasta file naming rules: "seqfile[from,to]"
+
+Lav file naming rules: "[target]vs[query].N.lav"
+
+=cut
 
 my %opt = (
     O => undef,
@@ -67,41 +106,30 @@ my %opt = (
     Z => undef,
 );
 
-my $man  = 0;
-my $help = 0;
-
 GetOptions(
-    'help|?'              => \$help,
-    'man'                 => \$man,
-    'pb|path_blastz=s'    => \$path_blastz,
-    'pn|path_normalize=s' => \$path_normalize,
-    'pl|path_lav2axt=s'   => \$path_lav2axt,
-    'dt|dir_target=s'     => \$dir_target,
-    'dq|dir_query=s'      => \$dir_query,
-    'dl|dir_lav=s'        => \$dir_lav,
-    's|specified=s'       => \$specified,
-    'p|parallel=i'        => \$parallel,
-    'tp|t_parted'         => \$t_parted,
-    'qp|q_parted'         => \$q_parted,
-    'paired'              => \$paired,
-    'is_self'             => \$is_self,
-    'O=s'                 => \$opt{O},
-    'E=s'                 => \$opt{E},
-    'Q=s'                 => \$opt{Q},
-    'C=s'                 => \$opt{C},
-    'T=s'                 => \$opt{T},
-    'M=s'                 => \$opt{M},
-    'K=s'                 => \$opt{K},
-    'L=s'                 => \$opt{L},
-    'H=s'                 => \$opt{H},
-    'Y=s'                 => \$opt{Y},
-    'Z=s'                 => \$opt{Z},
-    'noaxt'               => \$noaxt,
-    'lastz'               => \$lastz,
-) or pod2usage(2);
-
-pod2usage(1) if $help;
-pod2usage( -exitstatus => 0, -verbose => 2 ) if $man;
+    'help|?'          => sub { HelpMessage(0) },
+    'dir_target|dt=s' => \my $dir_target,
+    'dir_query|dq=s'  => \my $dir_query,
+    'dir_lav|dl=s' => \( my $dir_lav  = '.' ),
+    'parallel|p=i' => \( my $parallel = 1 ),
+    'specified|s=s' => \my $specified,
+    't_parted|tp'   => \my $t_parted,
+    'q_parted|qp'   => \my $q_parted,
+    'paired'        => \my $paired,
+    'is_self'       => \my $is_self,
+    'noaxt'         => \my $noaxt,
+    'O=s'           => \$opt{O},
+    'E=s'           => \$opt{E},
+    'Q=s'           => \$opt{Q},
+    'C=s'           => \$opt{C},
+    'T=s'           => \$opt{T},
+    'M=s'           => \$opt{M},
+    'K=s'           => \$opt{K},
+    'L=s'           => \$opt{L},
+    'H=s'           => \$opt{H},
+    'Y=s'           => \$opt{Y},
+    'Z=s'           => \$opt{Z},
+) or HelpMessage(1);
 
 #----------------------------------------------------------#
 # Init
@@ -122,21 +150,13 @@ if ($specified) {
 }
 
 # matrix file
-$opt{Q} = "$FindBin::Bin/matrix/" . $opt{Q} if $opt{Q};
+$opt{Q} = "$FindBin::RealBin/matrix/" . $opt{Q} if $opt{Q};
 
 # make lav dir
-unless ( -e $dir_lav ) {
-    mkdir $dir_lav, 0777
-        or die "Cannot create \"$dir_lav\" directory: $!";
-}
-
-# only lastz support self-alignments
-if ( $is_self and !$lastz ) {
-    die "only lastz support self-alignments\n";
-}
+path($dir_lav)->mkpath;
 
 #----------------------------------------------------------#
-# findfile section
+# find file section
 #----------------------------------------------------------#
 my ( @target_files, @query_files );
 if ($dir_target) {
@@ -167,7 +187,7 @@ printf "\n----%4s .fa files for target----\n", scalar @target_files;
 printf "\n----%4s .fa files for query----\n",  scalar @query_files;
 
 #----------------------------------------------------------#
-# blastz section
+# lastz section
 #----------------------------------------------------------#
 {
     my $worker = sub {
@@ -177,12 +197,12 @@ printf "\n----%4s .fa files for query----\n",  scalar @query_files;
 
         my ( $target, $query ) = split /\|/, $job;
 
-        print "Run blastz...\n";
+        print "Run lastz...\n";
 
         # naming the .lav file
-        my $t_base = basename($target);
+        my $t_base = path($target)->basename;
         $t_base =~ s/\..+?$//;
-        my $q_base = basename($query);
+        my $q_base = path($query)->basename;
         $q_base =~ s/\..+?$//;
 
         my $lav_file;
@@ -197,9 +217,9 @@ printf "\n----%4s .fa files for query----\n",  scalar @query_files;
             $i++;
         }
 
-        my $bz_cmd = "$path_blastz $target $query";
+        my $bz_cmd = "lastz $target $query";
         if ( $is_self and $target eq $query ) {
-            $bz_cmd = "$path_blastz $target --self";
+            $bz_cmd = "lastz $target --self";
         }
 
         for my $key ( keys %opt ) {
@@ -208,24 +228,22 @@ printf "\n----%4s .fa files for query----\n",  scalar @query_files;
                 $bz_cmd .= " $key=$value";
             }
         }
-        $bz_cmd .= " --ambiguous=iupac" if $lastz;
+        $bz_cmd .= " --ambiguous=iupac";
         $bz_cmd .= " > $lav_file";
         exec_cmd($bz_cmd);
-        printf "\n.lav file generated. [%s]\n\n", basename($lav_file);
+        printf "\n.lav file generated. [%s]\n\n", path($lav_file)->basename;
 
         return;
     };
 
     # All jobs to be done
     my @jobs;
-    if ($paired) {
-
-        # use the most similar chr name
+    if ($paired) {    # use the most similar chr name
         for my $target_file ( sort @target_files ) {
-            my $t_base = basename($target_file);
+            my $t_base = path($target_file)->basename;
             my ($query_file) = map { $_->[0] }
                 sort { $b->[1] <=> $a->[1] }
-                map { [ $_, compare( basename($_), $t_base ) ] } @query_files;
+                map { [ $_, compare( path($_)->basename, $t_base ) ] } @query_files;
             push @jobs, "$target_file|$query_file";
         }
     }
@@ -281,7 +299,7 @@ if ( $t_parted or $q_parted ) {
 
         print "Run normalize lav...\n";
         my $cmd
-            = "$path_normalize"
+            = "perl $FindBin::RealBin/normalize_lav.pl"
             . " -0 $t_len -1 $q_len"
             . " -i $file -o $outfile";
 
@@ -305,7 +323,7 @@ if ( !$noaxt ) {
         my $file = $job;
 
         print "Run lav2axt...\n";
-        my $cmd = "$path_lav2axt -l $file ";
+        my $cmd = "perl $FindBin::RealBin/lav2axt.pl -l $file ";
         exec_cmd($cmd);
         print ".axt file generated.\n\n";
 
@@ -325,7 +343,7 @@ if ( !$noaxt ) {
             my $file = $chunk_ref->[0];
 
             print "Run lav2axt...\n";
-            my $cmd = "$path_lav2axt -l $file ";
+            my $cmd = "perl $FindBin::RealBin/lav2axt.pl -l $file ";
             exec_cmd($cmd);
             print ".axt file generated.\n\n";
         }
@@ -349,80 +367,3 @@ sub exec_cmd {
 }
 
 __END__
-
-=head1 NAME
-
-bz.pl - execute blastz/lastz and lav2axt against two directories
-
-=head1 SYNOPSIS
-
-    bz.pl -dt <one target dir or file> -dq <one query dir or file> [options]
-      Options:
-        -?, --help              brief help message
-        --man                   full documentation
-
-      Run in parallel mode
-        -p, --paralle           number of child processes
-
-      Fasta dirs  
-        -dt, --dir_target       dir of target fasta files
-        -dq, --dir_query        dir of query fasta files
-
-      Output .lav and .axt
-        -dl, --dir_lav          where .lav and .axt files stores
-
-      Executable files:
-        -pb, --path_blastz      path to blastz executable file
-        -pn, --path_normalize   path to normalize_lav.pl
-        -pl, --path_lav2axt     path to lav2axt.pl
-
-      Predefined parameter set:  
-        -s,  --specified        use a predefined parameter set
-        
-      Relationship
-        --paired                relationship of target and query is one to one
-
-      Scoring parameters:
-        -O                      gap-open penalty
-        -E                      gap-extension penalty
-        -Q                      matrix file
-
-      Aligning parameters: 
-        -C                      chain option
-        -T                      words option
-        -M                      mask any base in seq1 hit this many times
-
-      Droping hsp parameters:
-        -K                      threshold for MSPs for the first pass
-        -L                      threshold for gapped alignments
-                                for the second pass
-        -H                      threshold to be interpolated between
-                                alignments
-        -Y                      X-drop parameter for gapped extension
-
-      Speedup parameters:
-        -Z                      increment between successive words
-    
-    >perl part_seq.pl -in t\RM11 -out t\RM11_parted -chunk 500000
-    >perl bz.pl -dt t\S288C\chr01.fa -dq t\RM11_parted -s set01 -dl test -qp
-    
-    >perl part_seq.pl -in t\S288C -out t\S288C_parted -chunk 500000
-    >perl bz.pl -dt t\S288C_parted -dq t\RM11\rm11.fa -s set01 -dl t\S288CvsRM11_df_tp -tp -p 1
-
-=head1 DESCRIPTION
-
-Blastz will take the first sequence in target fasta file and all sequences in
-query fasta file.
-
-So if there are mutiple query files, the program uses the largest one. And all
-target files in dir_target will be processed.
-
-So, if there are combined fasta files and multi fasta files coexisting in the
-target directory, just delete the axt file matched with the combined fasta
-filename.
-
-Fasta file naming rules: "seqfile[from,to]"
-
-Lav file naming rules: "[target]vs[query].N.lav"
-
-=cut

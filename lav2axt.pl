@@ -9,6 +9,9 @@ use YAML qw(Dump Load DumpFile LoadFile);
 
 use Path::Tiny;
 
+use lib "$FindBin::RealBin/lib";
+use MyUtil qw(read_fasta revcom);
+
 #----------------------------------------------------------#
 # GetOpt section
 #----------------------------------------------------------#

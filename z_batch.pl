@@ -25,9 +25,9 @@ z_batch.pl - bz.pl, lpcna.pl and amp.pl
 
 =head1 SYNOPSIS
 
-    perl z_batch.pl -dt t/S288C -dq t/RM11/rm11.fa -dw . -p 4 -r 1
+    perl z_batch.pl -dt t/S288C -dq t/RM11 -dw . -p 4 -r 1
 
-    perl z_batch.pl -dt t/S288C -dq t/RM11/rm11.fa -dw . -p 4 -r 2-4
+    perl z_batch.pl -dt t/S288C -dq t/RM11 -dw . -p 4 -r 2-4
 
 =cut
 
@@ -58,13 +58,12 @@ my @tasks;
 #----------------------------------------------------------#
 my $ldir;
 {
-    my $t_base = basename($dir_target);
+    my $t_base = path($dir_target)->basename;
     $t_base =~ s/\..+?$//;
-    my $q_base = basename($dir_query);
+    my $q_base = path($dir_query)->basename;
     $q_base =~ s/\..+?$//;
     my $tq = "${t_base}vs${q_base}";
-    $ldir = File::Spec->catdir( $dir_working, $tq );
-    $ldir = File::Spec->rel2abs($ldir);
+    $ldir = path( $dir_working, $tq )->absolute->stringify;
 }
 
 #----------------------------------------------------------#
@@ -72,13 +71,13 @@ my $ldir;
 #----------------------------------------------------------#
 my $dispatch = {
     1 => "perl $FindBin::Bin/bz.pl"
-        . " -s set01 -pb lastz --lastz"
+        . " -s set01"
         . " -dt $dir_target"
         . " -dq $dir_query"
         . " -dl $ldir"
         . " --parallel $parallel",
     2 => "perl $FindBin::Bin/bz.pl"
-        . " -s set01 --noaxt -pb lastz --lastz"
+        . " -s set01 --noaxt"
         . " -dt $dir_target"
         . " -dq $dir_query"
         . " -dl $ldir"

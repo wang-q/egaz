@@ -13,7 +13,7 @@ use vars qw(@ISA @EXPORT_OK %EXPORT_TAGS);
 %EXPORT_TAGS = (
     all => [
         qw{
-            read_sizes
+            read_sizes read_fasta revcom
             },
     ],
 );
@@ -33,4 +33,55 @@ sub read_sizes {
     }
 
     return \%length_of;
+}
+
+sub read_fasta {
+    my $filename = shift;
+
+    my @lines = path($filename)->lines( { chomp => 1,});
+
+    my @seq_names;
+    my %seqs;
+    for my $line (@lines) {
+        if ( $line =~ /^\>[\w:-]+/ ) {
+            $line =~ s/\>//;
+            push @seq_names, $line;
+            $seqs{$line} = '';
+        }
+        elsif ( $line =~ /^[\w-]+/ ) {
+            $line =~ s/[^\w-]//g;
+            my $seq_name = $seq_names[-1];
+            $seqs{$seq_name} .= $line;
+        }
+        else {    # Blank line, do nothing
+        }
+    }
+
+    return ( \%seqs, \@seq_names );
+}
+
+sub revcom {
+    my $seq = shift;
+
+    _ref2str( \$seq );
+    $seq =~ tr/ACGTMRWSYKVHDBNacgtmrwsykvhdbn-/TGCAKYWSRMBDHVNtgcakywsrmbdhvn-/;
+    my $seq_rc = reverse $seq;
+
+    return $seq_rc;
+}
+
+# in situ convert reference of string to string
+# For the sake of efficiency, the return value should be discarded
+sub _ref2str {
+    my $ref = shift;
+
+    if ( ref $ref eq "REF" ) {
+        $$ref = $$$ref;    # this is very weird, but it works
+    }
+
+    unless ( ref $ref eq "SCALAR" ) {
+        carp "Wrong parameter passed\n";
+    }
+
+    return $ref;
 }

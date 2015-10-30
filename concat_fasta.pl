@@ -12,6 +12,7 @@ use MCE;
 use File::Find::Rule;
 use IO::Zlib;
 use Path::Tiny;
+use List::MoreUtils qw(uniq);
 
 use AlignDB::Stopwatch;
 

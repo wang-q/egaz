@@ -179,22 +179,49 @@ for ( $dir_lav, $dir_net, $dir_axtnet ) {
 
     print "\n";
 
+    # This step would open all .chain files and reach system's maxfile limit.
+    # So merge 50 files a time.
+    #
     # chainMergeSort - Combine sorted files into larger sorted file
     # usage:
-    #   chainMergeSort file(s)
-    my $cmd = "chainMergeSort" . " $dir_lav/*.chain" . " > $dir_lav/all.chain";
+    #    chainMergeSort file(s)
+    # Output goes to standard output
+    # options:
+    #    -saveId - keep the existing chain ids.
+    #    -inputList=somefile - somefile contains list of input chain files.
+    #    -tempDir=somedir/ - somedir has space for temporary sorting data, default ./
+    my @files_chain = File::Find::Rule->file->name('*.chain')->in($dir_lav);
+    my $i           = 1;
+    while ( scalar @files_chain ) {
+        my @batching = splice @files_chain, 0, 100;
+
+        path( $dir_lav, "chainlist.tmp" )->spew( [ map {"$_\n"} @batching ] );
+
+        my $cmd
+            = "chainMergeSort"
+            . " -inputList="
+            . path( $dir_lav, "chainlist.tmp" )->stringify
+            . " > $dir_lav/all.$i.chain.tmp";
+        exec_cmd($cmd);
+        path( $dir_lav, "chainlist.tmp" )->remove;
+
+        $i++;
+    }
+    my $cmd = "chainMergeSort" . " $dir_lav/all.*.chain.tmp" . " > $dir_lav/all.chain";
     exec_cmd($cmd);
 
-    # chainPreNet - Remove chains that don't have a chance of being netted
-    # usage:
-    #   chainPreNet in.chain target.sizes query.sizes out.chain
-    $cmd
-        = "chainPreNet"
-        . " $dir_lav/all.chain"
-        . " $dir_target/chr.sizes"
-        . " $dir_query/chr.sizes"
-        . " $dir_lav/all.pre.chain";
-    exec_cmd($cmd);
+    {
+        # chainPreNet - Remove chains that don't have a chance of being netted
+        # usage:
+        #   chainPreNet in.chain target.sizes query.sizes out.chain
+        my $cmd
+            = "chainPreNet"
+            . " $dir_lav/all.chain"
+            . " $dir_target/chr.sizes"
+            . " $dir_query/chr.sizes"
+            . " $dir_lav/all.pre.chain";
+        exec_cmd($cmd);
+    }
 
     print "\n";
 }
@@ -318,6 +345,7 @@ for ( $dir_lav, $dir_net, $dir_axtnet ) {
     remove( \1, "$dir_lav/net" );
     remove("[*.psl");
     remove("[*.chain");
+    remove("*.tmp");
 
     $cmd = "gzip *.chain";
     exec_cmd($cmd);

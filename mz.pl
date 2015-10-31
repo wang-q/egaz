@@ -350,7 +350,7 @@ $mce->foreach( \@chr_names, $worker );
 
 {    # summary
     my $cmd
-        = "echo -e 'step,spe1,spe2,maf1,maf2,out1,out2,size,per_size'" . " > $out_dir/steps.csv";
+        = "echo 'step,spe1,spe2,maf1,maf2,out1,out2,size,per_size'" . " > $out_dir/steps.csv";
     exec_cmd($cmd);
 
     $cmd

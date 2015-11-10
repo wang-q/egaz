@@ -15,20 +15,16 @@ use List::Flatten;
 use List::MoreUtils qw(uniq zip);
 use Time::Duration;
 use Roman;
-use Path::Class;
+use Path::Tiny;
 use String::Compare;
 use Number::Format qw(format_bytes);
 
 use File::Find::Rule;
-use File::Spec;
-use File::Basename;
 use File::Remove qw(remove);
 use File::Copy::Recursive qw(fcopy);
 
-use AlignDB::Util qw(:all);
-
 use lib "$FindBin::RealBin/lib";
-use MyUtil qw(exec_cmd);
+use MyUtil qw(read_sizes exec_cmd);
 
 #----------------------------------------------------------#
 # GetOpt section
@@ -72,7 +68,6 @@ GetOptions(
     'target=s' => \my $target_name,
     'all'      => \my $all,
     'noclean'  => \my $noclean,
-    'syn'      => \my $syn,
     'parallel|p=i' => \( my $parallel = 1 ),
 ) or HelpMessage(1);
 
@@ -83,7 +78,7 @@ my $start_time = time;
 print "\n", "=" x 30, "\n";
 print "Processing...\n";
 
-my $suffix = $syn ? '.synNet.maf' : '.net.maf';
+my $suffix = '.maf';
 my $gzip;
 my @files = File::Find::Rule->file->name("*$suffix")->in(@dirs);
 printf "\n----%4s $suffix files ----\n", scalar @files;
@@ -94,8 +89,7 @@ if ( scalar @files == 0 ) {
 }
 
 if ( scalar @files == 0 ) {
-    print "Can't find maf files\n";
-    exit;
+    die "Can't find .maf files\n";
 }
 
 #----------------------------#
@@ -154,9 +148,8 @@ my $number_of_chr;
 {
 
     if ( !$target_name ) {
-        printf "%s appears %d times, use it as target.\n", $species[0], $seen{ $species[0] };
-        $target_name = $species[0];
-        shift @species;
+        $target_name = shift @species;
+        printf "%s appears %d times, use it as target.\n", $target_name, $seen{ $target_name };
     }
     else {
         my ($dummy) = grep { $_ eq $target_name } @species;
@@ -188,23 +181,20 @@ my $number_of_chr;
 
     my $cross = @species * $number_of_chr;
     if ( $cross == @files ) {
-        print "Perfect! All maf files ara pairwised.\n";
+        print "Perfect! All .maf files are pairwise.\n";
     }
     elsif ( $cross > @files ) {
-        die "There are multiple species maf files. Not sure it works\n";
+        die "There are multiple species .maf files. Not sure it works\n";
     }
     else {
-        die "Please check maf files. It seemed there are redundances.\n";
+        die "Please check .maf files. It seemed there were redundances.\n";
     }
 }
 
 unless ($out_dir) {
     $out_dir = ucfirst $target_name . "vs" . uc roman( scalar @species );
 }
-unless ( -e $out_dir ) {
-    mkdir $out_dir, 0777
-        or die "Cannot create directory [$out_dir]: $!";
-}
+path($out_dir)->mkpath;
 
 #----------------------------#
 # matching mafs
@@ -229,7 +219,8 @@ my @chr_names;
             }
         }
 
-        my @chrs = map { basename $_ , $suffix } @species_files;    # strip dir and suffix
+        my @chrs = map { path($_)->basename( ".net$suffix", ".synNet$suffix", $suffix ) }
+            @species_files;    # strip dir and suffix
         $file_of->{$name} = { zip( @chrs, @species_files ) };
         push @chr_string, join " ", sort @chrs;
     }
@@ -311,7 +302,7 @@ my $worker = sub {
         # Omit out1 and out2, unused synteny will be printed to stdout and
         # reused by following multiz processes
         print "Run multiz...\n";
-        my $cmd = "multiz" . " $maf1" . " $maf2" . " 1 " . " $out1" . " $out2" . " > $maf_step";
+        my $cmd = "multiz" . " M=10" . " $maf1" . " $maf2" . " 1 " . " $out1" . " $out2" . " > $maf_step";
         exec_cmd($cmd);
         print "Step [$step] .maf file generated.\n\n";
 

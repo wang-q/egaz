@@ -15,7 +15,7 @@ use String::Compare;
 use Time::Duration;
 
 use lib "$FindBin::RealBin/lib";
-use MyUtil qw(read_sizes);
+use MyUtil qw(read_sizes exec_cmd);
 
 #----------------------------------------------------------#
 # GetOpt section
@@ -355,15 +355,5 @@ if ( !$noaxt ) {
 }
 
 exit;
-
-sub exec_cmd {
-    my $cmd = shift;
-
-    print "\n", "-" x 12, "CMD", "-" x 15, "\n";
-    print $cmd , "\n";
-    print "-" x 30, "\n";
-
-    system $cmd;
-}
 
 __END__

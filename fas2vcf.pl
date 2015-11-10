@@ -13,7 +13,7 @@ use Path::Tiny;
 use AlignDB::Stopwatch;
 
 use lib "$FindBin::RealBin/lib";
-use MyUtil qw(read_sizes);
+use MyUtil qw(read_sizes exec_cmd);
 
 #----------------------------------------------------------#
 # GetOpt section
@@ -103,15 +103,5 @@ my $length_of = read_sizes($size_file);
 $stopwatch->block_message( "Process finished.", "duration" );
 
 exit;
-
-sub exec_cmd {
-    my $cmd = shift;
-
-    print "\n", "-" x 12, "CMD", "-" x 15, "\n";
-    print $cmd , "\n";
-    print "-" x 30, "\n";
-
-    system $cmd;
-}
 
 __END__

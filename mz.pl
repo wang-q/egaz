@@ -27,6 +27,9 @@ use File::Copy::Recursive qw(fcopy);
 
 use AlignDB::Util qw(:all);
 
+use lib "$FindBin::RealBin/lib";
+use MyUtil qw(exec_cmd);
+
 #----------------------------------------------------------#
 # GetOpt section
 #----------------------------------------------------------#
@@ -72,7 +75,6 @@ GetOptions(
     'syn'      => \my $syn,
     'parallel|p=i' => \( my $parallel = 1 ),
 ) or HelpMessage(1);
-
 
 #----------------------------------------------------------#
 # Init
@@ -349,8 +351,7 @@ my $mce = MCE->new( chunk_size => 1, max_workers => $parallel, );
 $mce->foreach( \@chr_names, $worker );
 
 {    # summary
-    my $cmd
-        = "echo 'step,spe1,spe2,maf1,maf2,out1,out2,size,per_size'" . " > $out_dir/steps.csv";
+    my $cmd = "echo 'step,spe1,spe2,maf1,maf2,out1,out2,size,per_size'" . " > $out_dir/steps.csv";
     exec_cmd($cmd);
 
     $cmd
@@ -379,16 +380,6 @@ exit;
 #----------------------------------------------------------#
 # Subroutines
 #----------------------------------------------------------#
-sub exec_cmd {
-    my $cmd = shift;
-
-    print "\n", "-" x 12, "CMD", "-" x 15, "\n";
-    print $cmd , "\n";
-    print "-" x 30, "\n";
-
-    system $cmd;
-}
-
 sub decompress_gzip {
     my @files = @_;
 

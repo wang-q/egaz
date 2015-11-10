@@ -14,6 +14,9 @@ use File::Remove qw(remove);
 use Path::Tiny;
 use Time::Duration;
 
+use lib "$FindBin::RealBin/lib";
+use MyUtil qw(exec_cmd);
+
 #----------------------------------------------------------#
 # GetOpt section
 #----------------------------------------------------------#
@@ -372,18 +375,5 @@ print "Runtime ", duration( time - $start_time ), ".\n";
 print "=" x 30, "\n";
 
 exit;
-
-#----------------------------------------------------------#
-# Subroutines
-#----------------------------------------------------------#
-sub exec_cmd {
-    my $cmd = shift;
-
-    print "\n", "-" x 12, "CMD", "-" x 15, "\n";
-    print $cmd , "\n";
-    print "-" x 30, "\n";
-
-    system $cmd;
-}
 
 __END__

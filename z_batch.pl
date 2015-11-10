@@ -13,7 +13,8 @@ use Time::Duration;
 use AlignDB::IntSpan;
 use AlignDB::Stopwatch;
 
-use FindBin;
+use lib "$FindBin::RealBin/lib";
+use MyUtil qw(exec_cmd);
 
 #----------------------------------------------------------#
 # GetOpt section
@@ -38,7 +39,6 @@ GetOptions(
     'dir_working|dw=s' => \( my $dir_working = '.' ),
     'parallel|p=i'     => \( my $parallel    = 1 ),
     'r|run=s'          => \( my $task        = 1 ),
-
 ) or HelpMessage(1);
 
 my @tasks;
@@ -63,7 +63,8 @@ my $ldir;
     my $q_base = path($dir_query)->basename;
     $q_base =~ s/\..+?$//;
     my $tq = "${t_base}vs${q_base}";
-    $ldir = path( $dir_working, $tq )->absolute->stringify;
+    $ldir = path( $dir_working, $tq );
+    $ldir = $ldir->absolute->stringify;
 }
 
 #----------------------------------------------------------#
@@ -103,6 +104,11 @@ for my $step (@tasks) {
 
     next unless $cmd;
 
+    if ( $step == 1 or $step == 2 ) {
+        path($ldir)->remove_tree;
+        path($ldir)->mkpath;
+    }
+
     my $start_time = time;
     print "\n", "=" x 30, "\n";
     print "Processing Step $step\n";
@@ -114,18 +120,5 @@ for my $step (@tasks) {
 print "\n";
 
 exit;
-
-#----------------------------------------------------------#
-# Subroutines
-#----------------------------------------------------------#
-sub exec_cmd {
-    my $cmd = shift;
-
-    print "\n", "-" x 12, "CMD", "-" x 15, "\n";
-    print $cmd , "\n";
-    print "-" x 30, "\n";
-
-    system $cmd;
-}
 
 __END__

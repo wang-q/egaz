@@ -276,10 +276,10 @@ if ( $t_parted or $q_parted ) {
 
     my ( %t_length, %q_length );
     if ($t_parted) {
-        %t_length = %{ read_sizes( $dir_target, 'chr.sizes' ) };
+        %t_length = %{ read_sizes( path( $dir_target, 'chr.sizes' )->stringify ) };
     }
     if ($q_parted) {
-        %q_length = %{ read_sizes( $dir_query, 'chr.sizes' ) };
+        %q_length = %{ read_sizes( path( $dir_query, 'chr.sizes' )->stringify ) };
     }
 
     for my $file (@lav_files) {

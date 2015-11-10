@@ -65,7 +65,7 @@ print "Processing...\n";
 my $dir_synnet = "$dir_lav/synNet";
 my $dir_chain  = "$dir_lav/chain";
 for ( $dir_synnet, $dir_chain ) {
-        path($_)->mkpath;
+    path($_)->mkpath;
 }
 
 my $t_prefix = path($dir_target)->basename;
@@ -91,7 +91,7 @@ if ( !$syn ) {
         my ( $self, $chunk_ref, $chunk_id ) = @_;
 
         my $file = $chunk_ref->[0];
-        my $output = path( $file)->basename( ".axt", ".axt.gz" );
+        my $output = path($file)->basename( ".axt", ".axt.gz" );
         $output = path( $dir_mafnet, "$output.maf" )->stringify;
 
         # axtToMaf - Convert from axt to maf format
@@ -177,7 +177,7 @@ else {
         my ( $self, $chunk_ref, $chunk_id ) = @_;
 
         my $file       = $chunk_ref->[0];
-        my $base       = path( $file)->basename( ".net" );
+        my $base       = path($file)->basename(".net");
         my $output     = path( $dir_mafsynnet, "$base.synNet.maf" )->stringify;
         my $chain_file = path( $dir_chain, "$base.chain" )->stringify;
 

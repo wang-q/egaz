@@ -14,7 +14,6 @@ use Set::Scalar;
 use List::Flatten;
 use List::MoreUtils qw(uniq zip);
 use Time::Duration;
-use Roman;
 use Path::Tiny;
 use String::Compare;
 use Number::Format qw(format_bytes);
@@ -102,34 +101,67 @@ if ($gzip) {
     @files = File::Find::Rule->file->name("*$suffix")->in(@dirs);
 }
 
-#----------------------------#
-# Gather species list from maf and tree
-#----------------------------#
-my @species;       # species list gathered from maf files; and then shift target out
-my %species_of;    # file to species
-my %seen;          # count
+#----------------------------------------------------------#
+# Gather species list from maf files
+#----------------------------------------------------------#
+#---
+#Bur_0:
+#  1: ~/data/alignment/arabidopsis19/AthvsBur_0/mafNet/chr1.net.maf
+#  2: ...
+#lyrata_65:
+#  1: ~/data/alignment/arabidopsis19/AthvsLyrata_set01_4/mafNet/chr1.net.maf
+#  2: ...
+
+my $file_of = {};    # all info here
+my %seen;            # count
+my @potential_targets;
+my @species;         # species list gathered from maf files; and then shift target out
+
 {
     print "Get species list\n";
-    for (@files) {
-        my $cmd = "mafSpeciesList $_ stdout";
-        $species_of{$_} = [ grep {$_} split /\n/, `$cmd` ];
-    }
+    for my $file (@files) {
+        my $cmd = "mafSpeciesList $file stdout";
+        my @list = grep { defined $_ } split /\n/, `$cmd`;
+        if ( @list > 2 ) {
+            print "There are three or more species in [$file].\n";
+            print Dump \@list;
+            die;
+        }
+        $seen{$_}++ for @list;
 
-    # count
-    for my $key ( keys %species_of ) {
-        for my $elem ( @{ $species_of{$key} } ) {
-            $seen{$elem}++;
+        my $chr_name = path($file)->basename( ".net$suffix", ".synNet$suffix", $suffix );
+        for my $sp (@list) {
+            if ( exists $file_of->{$sp} ) {
+                if ( exists $file_of->{$sp}{$chr_name} ) {
+                    push @potential_targets, $sp;
+                    push @{ $file_of->{$sp}{$chr_name} }, $file;
+                }
+                else {
+                    $file_of->{$sp}{$chr_name} = [$file];
+                }
+                $file_of->{$sp}{chr_set}->insert($chr_name);
+            }
+            else {
+                my $chr_set = Set::Scalar->new;
+                $chr_set->insert($chr_name);
+                $file_of->{$sp} = { $chr_name => [$file], chr_set => $chr_set };
+            }
         }
     }
+
+    @potential_targets = uniq(@potential_targets);
     (@species) = map { $_->[0] }
         sort { $b->[1] <=> $a->[1] }
         map { [ $_, $seen{$_} ] }
         keys %seen;
+
+    print "\n";
 }
 
+#----------------------------#
 # check number of species
-my $number_of_species = scalar @species;
-if ( $number_of_species < 3 ) {
+#----------------------------#
+if ( scalar @species < 3 ) {
     print "There're too few species, [@species].\nCan't run multiz.\n";
     print "Just copy pairwise maf to [$out_dir]\n";
 
@@ -141,32 +173,70 @@ if ( $number_of_species < 3 ) {
         compress_gzip(@files);
     }
 
+    print "\n";
     exit;
 }
 
-my $number_of_chr;
-{
-
-    if ( !$target_name ) {
+#----------------------------#
+# check target
+#----------------------------#
+if ( @potential_targets > 1 ) {
+    print "There are more than 1 potential targets\n";
+    print Dump { potential_targets => \@potential_targets };
+    die;
+}
+else {
+    if ( !defined $target_name ) {
         $target_name = shift @species;
-        printf "%s appears %d times, use it as target.\n", $target_name, $seen{ $target_name };
+        if ( $target_name eq $potential_targets[0] ) {
+            printf "%s appears %d times, use it as target.\n", $target_name, $seen{$target_name};
+        }
+        else {
+            print "Can't find target.\n";
+            die;
+        }
     }
     else {
         my ($dummy) = grep { $_ eq $target_name } @species;
-        die "Can't find target_name [$target_name] in .maf files.\n"
-            unless $dummy;
-        @species = grep { $_ ne $target_name } @species;
+        if ( !defined $dummy ) {
+            die "Can't find target_name [$target_name] in .maf files.\n";
+        }
+        elsif ( $target_name eq $potential_targets[0] ) {
+            print "Your assigned target [$target_name] is OK\n";
+            @species = grep { $_ ne $target_name } @species;
+        }
+        else {
+            print "Your assigned target [$target_name] isn't OK.\n";
+            print "It should be [$potential_targets[0]].\n";
+            die;
+        }
     }
+    print "\n";
+}
+
+#----------------------------#
+# Find chromosomes to be processed
+#----------------------------#
+my @chr_names = sort $file_of->{$target_name}{chr_set}->members;    # all target chromosomes
+{
+    print "Target chromosomes are [@chr_names]\n";
 
     # check other species occurrence number
-    my @occurrence = uniq( @seen{@species} );
+    my @occurrence = sort { $b <=> $a } uniq( @seen{@species} );
     if ( @occurrence > 1 ) {
+        print "Species occurrence number inconsistency [@occurrence]\n";
+        print "We will skip some chromosomes\n";
         print Dump \%seen;
-        die "Species occurrence number inconsistency [@occurrence]\n";
-    }
+        print "\n";
 
-    $number_of_chr = $occurrence[0];
-    print "I guess there are $number_of_chr chromosomes.\n";
+        my $intersect_chr_set = $file_of->{$target_name}{chr_set}->clone;
+        for my $sp ( keys %{$file_of} ) {
+            $intersect_chr_set = $intersect_chr_set->intersection( $file_of->{$sp}{chr_set} );
+        }
+        @chr_names = sort $intersect_chr_set->members;
+        print "Chromosomes to be processed are [@chr_names]\n";
+    }
+    print "\n";
 
     # sort @species by distances in tree
     my $ladder     = ladder( $tree_file, $target_name );
@@ -178,75 +248,24 @@ my $number_of_chr;
         map { [ $_, $item_order{$_} ] } @species;
 
     print "Order of stitch [@species]\n";
-
-    my $cross = @species * $number_of_chr;
-    if ( $cross == @files ) {
-        print "Perfect! All .maf files are pairwise.\n";
-    }
-    elsif ( $cross > @files ) {
-        die "There are multiple species .maf files. Not sure it works\n";
-    }
-    else {
-        die "Please check .maf files. It seemed there were redundances.\n";
-    }
+    print "\n";
 }
 
 unless ($out_dir) {
-    $out_dir = ucfirst $target_name . "vs" . uc roman( scalar @species );
+    $out_dir = ucfirst $target_name . "_n" . ( scalars(@species) + 1 );
 }
 path($out_dir)->mkpath;
 
-#----------------------------#
-# matching mafs
-#----------------------------#
-#---
-#Bur_0:
-#  1: ~/data/alignment/arabidopsis19/AthvsBur_0/mafNet/chr1.net.maf
-#  2: ...
-#lyrata_65:
-#  1: ~/data/alignment/arabidopsis19/AthvsLyrata_set01_4/mafNet/chr1.net.maf
-#  2: ...
-my $file_of = {};
-my @chr_names;
-{
-    my @chr_string;
-    for my $name (@species) {
-        my @species_files;
-        for my $key (%species_of) {
-            my ($dummy) = grep { $_ ne $target_name } @{ $species_of{$key} };
-            if ( $dummy and $name eq $dummy ) {
-                push @species_files, $key;
-            }
-        }
-
-        my @chrs = map { path($_)->basename( ".net$suffix", ".synNet$suffix", $suffix ) }
-            @species_files;    # strip dir and suffix
-        $file_of->{$name} = { zip( @chrs, @species_files ) };
-        push @chr_string, join " ", sort @chrs;
+DumpFile(
+    path( $out_dir, 'info.yml' )->stringify,
+    {   file_of   => $file_of,
+        chr_names => \@chr_names,
     }
-    print Dump { chr_string => \@chr_string };
+);
 
-    if ( scalar uniq(@chr_string) == 1 ) {
-        @chr_names = split / /, $chr_string[0];
-        if ( @chr_names == $number_of_chr ) {
-            print "Check maf filenames OK\n";
-            print "@chr_names\n";
-        }
-        else {
-            print "chr_string\t@chr_string\n";
-            print "number_of_chr\t$number_of_chr\n";
-            die "Check maf filenames FAILED\n";
-        }
-    }
-    else {
-        print "@chr_string\n";
-        die "Check maf filenames FAILED\n";
-    }
-}
-
-#----------------------------#
+#----------------------------------------------------------#
 # Finally, multiz comes
-#----------------------------#
+#----------------------------------------------------------#
 
 my $worker = sub {
     my ( $self, $chunk_ref, $chunk_id ) = @_;
@@ -280,14 +299,14 @@ my $worker = sub {
 
         if ( !defined $species1 ) {
             $species1 = shift @species_copy;
-            $maf1     = $file_of->{$species1}{$chr_name};
+            $maf1     = $file_of->{$species1}{$chr_name}[0];
         }
         else {
             $maf1 = $maf_step;
         }
         if ( !defined $species2 ) {
             $species2 = shift @species_copy;
-            $maf2     = $file_of->{$species2}{$chr_name};
+            $maf2     = $file_of->{$species2}{$chr_name}[0];
         }
 
         my $out1 = "$out_dir/$chr_name.out1";
@@ -302,7 +321,13 @@ my $worker = sub {
         # Omit out1 and out2, unused synteny will be printed to stdout and
         # reused by following multiz processes
         print "Run multiz...\n";
-        my $cmd = "multiz" . " M=10" . " $maf1" . " $maf2" . " 1 " . " $out1" . " $out2" . " > $maf_step";
+        my $cmd
+            = "multiz" . " M=10"
+            . " $maf1"
+            . " $maf2" . " 1 "
+            . " $out1"
+            . " $out2"
+            . " > $maf_step";
         exec_cmd($cmd);
         print "Step [$step] .maf file generated.\n\n";
 

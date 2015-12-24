@@ -78,27 +78,16 @@ print "\n", "=" x 30, "\n";
 print "Processing...\n";
 
 my $suffix = '.maf';
-my $gzip;
 my @files = File::Find::Rule->file->name("*$suffix")->in(@dirs);
 printf "\n----%4s $suffix files ----\n", scalar @files;
 if ( scalar @files == 0 ) {
     @files = sort File::Find::Rule->file->name("*$suffix.gz")->in(@dirs);
     printf "\n----Total $suffix.gz Files: %4s----\n\n", scalar @files;
-    $gzip++;
+    $suffix = '.maf.gz';
 }
 
 if ( scalar @files == 0 ) {
-    die "Can't find .maf files\n";
-}
-
-#----------------------------#
-# decompress
-#----------------------------#
-if ($gzip) {
-    decompress_gzip(@files);
-
-    # find newly decompressed maf files
-    @files = File::Find::Rule->file->name("*$suffix")->in(@dirs);
+    die "Can't find .maf or .maf.gz files\n";
 }
 
 #----------------------------------------------------------#
@@ -120,7 +109,7 @@ my @species;         # species list gathered from maf files; and then shift targ
 {
     print "Get species list\n";
     for my $file (@files) {
-        my $cmd = "mafSpeciesList $file stdout";
+        my $cmd = "gzip -dcf $file " . q{| perl -nl -e '/^s (\w+)/ or next; print $1' | sort | uniq};
         my @list = grep { defined $_ } split /\n/, `$cmd`;
         if ( @list > 2 ) {
             print "There are three or more species in [$file].\n";
@@ -167,10 +156,6 @@ if ( scalar @species < 3 ) {
 
     for my $file (@files) {
         fcopy( $file, $out_dir );
-    }
-
-    if ($gzip) {
-        compress_gzip(@files);
     }
 
     print "\n";
@@ -314,8 +299,8 @@ my $worker = sub {
 
         $maf_step
             = @species_copy
-            ? "$out_dir/$chr_name.step$step$suffix"
-            : "$out_dir/$chr_name$suffix";
+            ? "$out_dir/$chr_name.step$step.maf"
+            : "$out_dir/$chr_name.maf";
 
         # here we set out1 and out2 to discard unused synteny
         # Omit out1 and out2, unused synteny will be printed to stdout and
@@ -352,7 +337,7 @@ my $worker = sub {
         remove("$out_dir/$chr_name.step*");
     }
 
-    my $cmd = "gzip " . "$out_dir/$chr_name$suffix";
+    my $cmd = "gzip " . "$out_dir/$chr_name.maf";
     exec_cmd($cmd);
 
     print $str;
@@ -380,13 +365,6 @@ $mce->foreach( \@chr_names, $worker );
     exec_cmd($cmd);
 }
 
-#----------------------------#
-# compress
-#----------------------------#
-if ($gzip) {
-    compress_gzip(@files);
-}
-
 print "\n";
 print "Runtime ", duration( time - $start_time ), ".\n";
 print "=" x 30, "\n";
@@ -396,43 +374,6 @@ exit;
 #----------------------------------------------------------#
 # Subroutines
 #----------------------------------------------------------#
-sub decompress_gzip {
-    my @files = @_;
-
-    print "maf files is gzipped, multiz can't handle them.\n";
-    print "Decompress...\n";
-
-    my $mce = MCE->new( chunk_size => 1, max_workers => $parallel, );
-    $mce->foreach(
-        [ sort @files ],
-        sub {
-            my ( $self, $chunk_ref, $chunk_id ) = @_;
-
-            my $file = $chunk_ref->[0];
-            my $cmd  = "gzip -d $file";
-            exec_cmd($cmd);
-        }
-    );
-}
-
-sub compress_gzip {
-    my @files = @_;
-
-    print "Restore compressed state of maf files.\n";
-    print "Compress...\n";
-
-    my $mce = MCE->new( chunk_size => 1, max_workers => $parallel, );
-    $mce->foreach(
-        [ sort @files ],
-        sub {
-            my ( $self, $chunk_ref, $chunk_id ) = @_;
-
-            my $file = $chunk_ref->[0];
-            my $cmd  = "gzip $file";
-            exec_cmd($cmd);
-        }
-    );
-}
 
 #----------------------------#
 # parsing tree

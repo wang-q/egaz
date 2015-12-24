@@ -3,15 +3,12 @@ use strict;
 use warnings;
 use autodie;
 
-use Getopt::Long;
-use Pod::Usage;
-use Config::Tiny;
+use Getopt::Long qw(HelpMessage);
+use FindBin;
 use YAML::Syck qw(Dump Load DumpFile LoadFile);
 
 use Path::Tiny;
 use Graph;
-
-use FindBin;
 
 use AlignDB::IntSpan;
 use AlignDB::Stopwatch;
@@ -19,34 +16,38 @@ use AlignDB::Stopwatch;
 #----------------------------------------------------------#
 # GetOpt section
 #----------------------------------------------------------#
-my $file;
 
-my $output;
+=head1 NAME
 
-my $man  = 0;
-my $help = 0;
+cc.pl - connected components of paralog graph
+    
+=head1 SYNOPSIS
+
+    perl cc.pl -f <file> [options]
+      Options:
+        --help          -?          brief help message
+        --file          -f  STR     file
+        --output        -o  STR     output   
+
+=cut
 
 GetOptions(
-    'help|?'     => \$help,
-    'man'        => \$man,
-    'f|file=s'   => \$file,
-    'o|output=s' => \$output,
-) or pod2usage(2);
-
-pod2usage(1) if $help;
-pod2usage( -exitstatus => 0, -verbose => 2 ) if $man;
-
-#----------------------------------------------------------#
-# Init
-#----------------------------------------------------------#
-my $stopwatch = AlignDB::Stopwatch->new;
-$stopwatch->start_message("Analysis [$file]");
+    'help|?'     => sub { HelpMessage(0) },
+    'file|f=s'   => \my $file,
+    'output|o=s' => \my $output,
+) or HelpMessage(1);
 
 if ( !$output ) {
     $output = path($file)->basename;
 
     ($output) = grep {defined} split /\./, $output;
 }
+
+#----------------------------------------------------------#
+# Init
+#----------------------------------------------------------#
+my $stopwatch = AlignDB::Stopwatch->new;
+$stopwatch->start_message("Analysis [$file]");
 
 #----------------------------------------------------------#
 # Start
@@ -90,12 +91,9 @@ for my $c (@cc) {
             for my $j ( $unhandled->elements ) {
                 next if !$g->has_edge( $nodes[$i], $nodes[$j] );
                 next
-                    if !$g->has_edge_attribute( $nodes[$i], $nodes[$j],
-                    "strand" );
+                    if !$g->has_edge_attribute( $nodes[$i], $nodes[$j], "strand" );
 
-                my $edge_strand
-                    = $g->get_edge_attribute( $nodes[$i], $nodes[$j],
-                    "strand" );
+                my $edge_strand = $g->get_edge_attribute( $nodes[$i], $nodes[$j], "strand" );
                 if ( $edge_strand eq "-" ) {
                     printf " " x 8 . "change strand of %s\n", $nodes[$j];
                     $nodes_ref[$j]->[2] = change_strand( $nodes_ref[$i]->[2] );
@@ -240,24 +238,3 @@ sub change_strand {
 }
 
 __END__
-
-
-=head1 NAME
-
-    gather_info_axt.pl - 
-
-=head1 SYNOPSIS
-
-    gather_info_axt.pl [options]
-      Options:
-        --help              brief help message
-        --man               full documentation
-        -t, --ft            target file (output)
-        -m, --fm            merge file
-        -f, --fields        fields
-
-    perl gather_info_axt.pl -f example.match.tsv
-
-=cut
-
-

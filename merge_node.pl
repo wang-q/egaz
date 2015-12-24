@@ -1,10 +1,10 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use autodie;
 
-use Getopt::Long;
-use Pod::Usage;
-use Config::Tiny;
+use Getopt::Long qw(HelpMessage);
+use FindBin;
 use YAML::Syck qw(Dump Load DumpFile LoadFile);
 
 use File::Basename;
@@ -17,40 +17,42 @@ use AlignDB::Stopwatch;
 #----------------------------------------------------------#
 # GetOpt section
 #----------------------------------------------------------#
-my @files;
 
-my $output;
+=head1 NAME
 
-my $coverage = 0.9;    # When larger than this ratio, merge runlists
+merge_node.pl - merge overlapped nodes of paralog graph
+    
+=head1 SYNOPSIS
 
-my $verbose;
+    perl merge_node.pl -f <file> [options]
+      Options:
+        --help          -?          brief help message
+        --file          -f  STR     file
+        --output        -o  STR     output   
+        --coverage      -c  FLOAT   When larger than this ratio, merge nodes, default is [0.9]       
+        --verbose       -v          verbose mode
 
-my $man  = 0;
-my $help = 0;
+=cut
 
 GetOptions(
-    'help|?'     => \$help,
-    'man'        => \$man,
-    'f|files=s'  => \@files,
-    'o|output=s' => \$output,
-    'c|coverage=s'  => \$coverage,
-    'v|verbose'  => \$verbose,
-) or pod2usage(2);
-
-pod2usage(1) if $help;
-pod2usage( -exitstatus => 0, -verbose => 2 ) if $man;
-
-#----------------------------------------------------------#
-# Init
-#----------------------------------------------------------#
-my $stopwatch = AlignDB::Stopwatch->new;
-$stopwatch->start_message("Paralog graph");
+    'help|?'     => sub { HelpMessage(0) },
+    'files|f=s'  => \my @files,
+    'output|o=s' => \my $output,
+    'coverage|c=f' => \( my $coverage = 0.9 ),
+    'v|verbose|v' => \my $verbose,
+) or HelpMessage(1);
 
 if ( !$output ) {
     $output = basename( $files[0] );
     ($output) = grep {defined} split /\./, $output;
     $output = "$output.merge.yml";
 }
+
+#----------------------------------------------------------#
+# Init
+#----------------------------------------------------------#
+my $stopwatch = AlignDB::Stopwatch->new;
+$stopwatch->start_message("Paralog graph");
 
 #----------------------------------------------------------#
 # Start
@@ -93,8 +95,7 @@ $stopwatch->block_message("Merge nodes");
 
 for my $chr ( sort keys %chrs ) {
     print "Merge nodes in chromosome [$chr]\n";
-    my @nodes = sort grep { $g->get_vertex_attribute( $_, "chr" ) eq $chr }
-        $g->vertices;
+    my @nodes = sort grep { $g->get_vertex_attribute( $_, "chr" ) eq $chr } $g->vertices;
 
     for my $i ( 0 .. $#nodes ) {
         my $node_i = $nodes[$i];
@@ -112,8 +113,7 @@ for my $chr ( sort keys %chrs ) {
                     and $coverage_j >= $coverage )
                 {
                     $g->add_edge( $nodes[$i], $nodes[$j] );
-                    print " " x 8,
-                        "Merge with Node $j / @{[$#nodes]}\t$node_j\n";
+                    print " " x 8, "Merge with Node $j / @{[$#nodes]}\t$node_j\n";
                 }
             }
         }
@@ -193,24 +193,3 @@ sub string_to_set {
 }
 
 __END__
-
-
-=head1 NAME
-
-    gather_info_axt.pl - 
-
-=head1 SYNOPSIS
-
-    gather_info_axt.pl [options]
-      Options:
-        --help              brief help message
-        --man               full documentation
-        -t, --ft            target file (output)
-        -m, --fm            merge file
-        -f, --fields        fields
-
-    perl gather_info_axt.pl -f example.match.tsv
-
-=cut
-
-

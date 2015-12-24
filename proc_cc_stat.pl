@@ -3,9 +3,8 @@ use strict;
 use warnings;
 use autodie;
 
-use Getopt::Long;
-use Pod::Usage;
-use Config::Tiny;
+use Getopt::Long qw(HelpMessage);
+use FindBin;
 use YAML::Syck qw(Dump Load DumpFile LoadFile);
 
 use Path::Tiny;
@@ -18,33 +17,30 @@ use AlignDB::Util qw(:all);
 #----------------------------------------------------------#
 # GetOpt section
 #----------------------------------------------------------#
-my $cc_file;
-my $size_file;
 
-my $output;
+=head1 NAME
 
-my $low_cut = 4;    # low copies their own stats
+merge_node.pl - merge overlapped nodes of paralog graph
+    
+=head1 SYNOPSIS
 
-my $man  = 0;
-my $help = 0;
+    perl merge_node.pl -f <file> [options]
+      Options:
+        --help          -?          brief help message
+        --file          -f  STR     file
+        --size          -s  STR     chr.sizes
+        --output        -o  STR     output   
+        --low           -l  INT     low copies their own stats, default is [4]
+
+=cut
 
 GetOptions(
-    'help|?'     => \$help,
-    'man'        => \$man,
-    'f|file=s'   => \$cc_file,
-    's|size=s'   => \$size_file,
-    'o|output=s' => \$output,
-    'l|low=s'    => \$low_cut,
-) or pod2usage(2);
-
-pod2usage(1) if $help;
-pod2usage( -exitstatus => 0, -verbose => 2 ) if $man;
-
-#----------------------------------------------------------#
-# Init
-#----------------------------------------------------------#
-my $stopwatch = AlignDB::Stopwatch->new;
-$stopwatch->start_message("Analysis [$cc_file]");
+    'help|?'     => sub { HelpMessage(0) },
+    'file|f=s'   => \my $cc_file,
+    'size|s=s'   => \my $size_file,
+    'output|o=s' => \my $output,
+    'low|l=i' => \( my $low_cut = 4 ),
+) or HelpMessage(1);
 
 if ( !$output ) {
     $output = path($cc_file)->basename;
@@ -52,6 +48,12 @@ if ( !$output ) {
     ($output) = grep {defined} split /\./, $output;
     $output = "$output.cc";
 }
+
+#----------------------------------------------------------#
+# Init
+#----------------------------------------------------------#
+my $stopwatch = AlignDB::Stopwatch->new;
+$stopwatch->start_message("Analysis [$cc_file]");
 
 #----------------------------------------------------------#
 # Start
@@ -169,11 +171,9 @@ if ($size_file) {
             $count = $count_of->{$_};
         }
         print {$fh} join( ",",
-            $_,                 "sum",
-            $length_of_genome,  $sum_of->{$_},
+            $_, "sum", $length_of_genome, $sum_of->{$_},
             $coverage_of->{$_}, $sum_of->{$_} / $sum_of->{all},
-            $count,             $piece_of->{$_},
-            $sum_of->{$_} / $piece_of->{$_} ),
+            $count, $piece_of->{$_}, $sum_of->{$_} / $piece_of->{$_} ),
             "\n";
     }
     close $fh;
@@ -202,9 +202,8 @@ if ($size_file) {
         if ( $copy > $low_cut ) {
             for ( @{$c} ) {
                 my ( $chr, $set, $strand ) = string_to_set($_);
-                print { $link_fh_of->{N} } join( " ",
-                    $chr, $set->min, $set->max,
-                    "fill_color=" . $colors[$color_idx] ),
+                print { $link_fh_of->{N} }
+                    join( " ", $chr, $set->min, $set->max, "fill_color=" . $colors[$color_idx] ),
                     "\n";
             }
 
@@ -221,8 +220,7 @@ if ($size_file) {
                     my ( $chr, $set, $strand ) = string_to_set( $c->[$_] );
                     push @fields,
                         (
-                        $chr,
-                        $strand eq "+"
+                        $chr, $strand eq "+"
                         ? ( $set->min, $set->max )
                         : ( $set->max, $set->min )
                         );
@@ -240,24 +238,3 @@ $stopwatch->end_message;
 exit;
 
 __END__
-
-
-=head1 NAME
-
-    gather_info_axt.pl - 
-
-=head1 SYNOPSIS
-
-    gather_info_axt.pl [options]
-      Options:
-        --help              brief help message
-        --man               full documentation
-        -t, --ft            target file (output)
-        -m, --fm            merge file
-        -f, --fields        fields
-
-    perl gather_info_axt.pl -f example.match.tsv
-
-=cut
-
-

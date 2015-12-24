@@ -1,10 +1,10 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use autodie;
 
-use Getopt::Long;
-use Pod::Usage;
-use Config::Tiny;
+use Getopt::Long qw(HelpMessage);
+use FindBin;
 use YAML::Syck qw(Dump Load DumpFile LoadFile);
 
 use File::Find::Rule;
@@ -17,45 +17,45 @@ use AlignDB::Stopwatch;
 #----------------------------------------------------------#
 # GetOpt section
 #----------------------------------------------------------#
-my @files;         # node pair tsv files
-my $graph_file;    # precomputed graph
 
-my $output;        # Graph yml dump
+=head1 NAME
 
-my $merge_file;    # merged nodes, hashref
+merge_node.pl - merge overlapped nodes of paralog graph
+    
+=head1 SYNOPSIS
 
-my $nonself;       # skip self match, even for palindrome
-
-my $verbose;
-
-my $man  = 0;
-my $help = 0;
+    perl merge_node.pl -f <file> [options]
+      Options:
+        --help          -?          brief help message
+        --file          -f  STR     node pair tsv files
+        --output        -o  STR     Graph yml dump
+        --graph         -g  STR     precomputed graph
+        --merge         -m  STR     merged nodes, hashref
+        --nonself       -n          skip self match, even for palindrome       
+        --verbose       -v          verbose mode
+=cut
 
 GetOptions(
-    'help|?'     => \$help,
-    'man'        => \$man,
-    'f|files=s'  => \@files,
-    'g|graph=s'  => \$graph_file,
-    'o|output=s' => \$output,
-    'm|merge=s'  => \$merge_file,
-    'n|nonself'  => \$nonself,
-    'v|verbose'  => \$verbose,
-) or pod2usage(2);
-
-pod2usage(1) if $help;
-pod2usage( -exitstatus => 0, -verbose => 2 ) if $man;
-
-#----------------------------------------------------------#
-# Init
-#----------------------------------------------------------#
-my $stopwatch = AlignDB::Stopwatch->new;
-$stopwatch->start_message("Paralog graph");
+    'help|?'     => sub { HelpMessage(0) },
+    'files|f=s'  => \my @files,
+    'output|o=s' => \my $output,
+    'graph|g=s'  => \my $graph_file,
+    'merge|m=s'  => \my $merge_file,
+    'nonself|n'  => \my $nonself,
+    'verbose|v'  => \my $verbose,
+) or HelpMessage(1);
 
 if ( !$output ) {
     $output = basename( $graph_file ? $graph_file : $files[0] );
     ($output) = grep {defined} split /\./, $output;
     $output = "$output.graph.yml";
 }
+
+#----------------------------------------------------------#
+# Init
+#----------------------------------------------------------#
+my $stopwatch = AlignDB::Stopwatch->new;
+$stopwatch->start_message("Paralog graph");
 
 #----------------------------------------------------------#
 # Start
@@ -116,8 +116,7 @@ LINE: while ( my $line = <$in_fh> ) {
             $g->set_edge_attribute( @nodes, "strand", $hit_strand );
 
             print join "\t", @nodes, "\n" if $verbose;
-            printf "Nodes %d \t Edges %d\n", scalar $g->vertices,
-                scalar $g->edges
+            printf "Nodes %d \t Edges %d\n", scalar $g->vertices, scalar $g->edges
                 if $verbose;
         }
         else {
@@ -249,24 +248,3 @@ sub change_strand {
 #}
 
 __END__
-
-
-=head1 NAME
-
-    paralog_graph.pl - 
-
-=head1 SYNOPSIS
-
-    paralog_graph.pl [options]
-      Options:
-        --help              brief help message
-        --man               full documentation
-        -t, --ft            target file (output)
-        -m, --fm            merge file
-        -f, --fields        fields
-
-    perl gather_info_axt.pl -f example.match.tsv
-
-=cut
-
-

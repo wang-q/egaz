@@ -3,9 +3,8 @@ use strict;
 use warnings;
 use autodie;
 
-use Getopt::Long;
-use Pod::Usage;
-use Config::Tiny;
+use Getopt::Long qw(HelpMessage);
+use FindBin;
 use YAML::Syck qw(Dump Load DumpFile LoadFile);
 
 use Path::Tiny;
@@ -23,31 +22,31 @@ use AlignDB::Util qw(:all);
 #----------------------------------------------------------#
 # GetOpt section
 #----------------------------------------------------------#
-my $cc_file;
-my $size_file;
 
-my $output;
+=head1 NAME
 
-my $msa = 'mafft';    # Default alignment program
+merge_node.pl - merge overlapped nodes of paralog graph
+    
+=head1 SYNOPSIS
 
-my $man  = 0;
-my $help = 0;
+    perl merge_node.pl -f <file> [options]
+      Options:
+        --help          -?          brief help message
+        --file          -f  STR     file
+        --size          -s  STR     chr.sizes
+        --output        -o  STR     output   
+        --msa               STR     Aligning program, default is [mafft]
+
+=cut
 
 GetOptions(
-    'help|?'     => \$help,
-    'man'        => \$man,
-    'f|file=s'   => \$cc_file,
-    's|size=s'   => \$size_file,
-    'o|output=s' => \$output,
-    'msa=s'      => \$msa,
-) or pod2usage(2);
+    'help|?'     => sub { HelpMessage(0) },
+    'file|f=s'   => \my $cc_file,
+    'size|s=s'   => \my $size_file,
+    'output|o=s' => \my $output,
+    'msa=s' => \( my $msa = 'mafft' ),
+) or HelpMessage(1);
 
-pod2usage(1) if $help;
-pod2usage( -exitstatus => 0, -verbose => 2 ) if $man;
-
-#----------------------------------------------------------#
-# Init
-#----------------------------------------------------------#
 if ( !defined $size_file ) {
     die "--size chr.sizes is needed\n";
 }
@@ -55,15 +54,18 @@ elsif ( !-e $size_file ) {
     die "--size chr.sizes doesn't exist\n";
 }
 
-my $stopwatch = AlignDB::Stopwatch->new;
-$stopwatch->start_message("Analysis [$cc_file]");
-
 if ( !$output ) {
     $output = path($cc_file)->basename;
 
     ($output) = grep {defined} split /\./, $output;
     $output = "$output.cc";
 }
+
+#----------------------------------------------------------#
+# Init
+#----------------------------------------------------------#
+my $stopwatch = AlignDB::Stopwatch->new;
+$stopwatch->start_message("Analysis [$cc_file]");
 
 #----------------------------------------------------------#
 # Start
@@ -86,13 +88,10 @@ my @chrs     = sort keys %{ read_sizes($size_file) };
     print "Write aligned cc sequences\n";
 
     print " " x 4, "Load genomic sequences\n";
-    my %file_of
-        = map { $_ => path($size_file)->parent->child( $_ . ".fa" )->stringify }
+    my %file_of = map { $_ => path($size_file)->parent->child( $_ . ".fa" )->stringify } @chrs;
+    my %genome_of
+        = map { $_ => Bio::SeqIO->new( -file => $file_of{$_}, -format => 'Fasta' )->next_seq->seq }
         @chrs;
-    my %genome_of = map {
-        $_ => Bio::SeqIO->new( -file => $file_of{$_}, -format => 'Fasta' )
-            ->next_seq->seq
-    } @chrs;
 
     # open file handlers
     my $seq_fh_of = {};
@@ -130,12 +129,10 @@ my @chrs     = sort keys %{ read_sizes($size_file) };
             $seq_of->{ $heads[$i] } = uc $realigned_seqs->[$i];
         }
 
-        my ( $head_chopped, $tail_chopped )
-            = trim_head_tail( $seq_of, \@heads, 10, 10 );
+        my ( $head_chopped, $tail_chopped ) = trim_head_tail( $seq_of, \@heads, 10, 10 );
 
         my ( $new_seq_of, $new_heads )
-            = change_name_chopped( $seq_of, \@heads, $head_chopped,
-            $tail_chopped );
+            = change_name_chopped( $seq_of, \@heads, $head_chopped, $tail_chopped );
 
         # names changed
         push @new_cc, $new_heads;
@@ -152,13 +149,12 @@ my @chrs     = sort keys %{ read_sizes($size_file) };
         print " " x 12, "Write pairwise alignments\n";
         my $pair_ary = best_pairwise( $new_seq_of, $new_heads );
         for my $p ( @{$pair_ary} ) {
-            my $realigned_pair = multi_align(
-                [ $new_seq_of->{ $p->[0] }, $new_seq_of->{ $p->[1] } ], $msa );
+            my $realigned_pair
+                = multi_align( [ $new_seq_of->{ $p->[0] }, $new_seq_of->{ $p->[1] } ], $msa );
             for my $i ( 0 .. scalar @{$p} - 1 ) {
                 printf { $seq_fh_of->{pairwise} } ">%s",        $p->[$i];
                 printf { $seq_fh_of->{pairwise} } "|copy=%s\n", $copy;
-                printf { $seq_fh_of->{pairwise} } "%s\n",
-                    uc $realigned_pair->[$i];
+                printf { $seq_fh_of->{pairwise} } "%s\n",       uc $realigned_pair->[$i];
             }
             print { $seq_fh_of->{pairwise} } "\n";
         }
@@ -274,24 +270,3 @@ sub best_pairwise {
 }
 
 __END__
-
-
-=head1 NAME
-
-    gather_info_axt.pl - 
-
-=head1 SYNOPSIS
-
-    gather_info_axt.pl [options]
-      Options:
-        --help              brief help message
-        --man               full documentation
-        -t, --ft            target file (output)
-        -m, --fm            merge file
-        -f, --fields        fields
-
-    perl gather_info_axt.pl -f example.match.tsv
-
-=cut
-
-

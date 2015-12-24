@@ -73,6 +73,7 @@ print "Processing...\n";
 my $dir_net    = "$dir_lav/net";
 my $dir_axtnet = "$dir_lav/axtNet";
 for ( $dir_lav, $dir_net, $dir_axtnet ) {
+    $_ = path($_)->absolute->stringify;
     path($_)->mkpath;
 }
 
@@ -353,8 +354,8 @@ for ( $dir_lav, $dir_net, $dir_axtnet ) {
     $cmd = "gzip *.chain";
     exec_cmd($cmd);
 
-    my @files = File::Find::Rule->file->name('*.axt')->in("$dir_lav/axtNet");
-    printf "\n----%4s .axt files to be converted ----\n", scalar @files;
+    my @files = File::Find::Rule->file->name('*.axt')->in($dir_lav);
+    printf "\n----%4s .axt files to be gzipped ----\n", scalar @files;
 
     my $mce = MCE->new( chunk_size => 1, max_workers => $parallel, );
     $mce->foreach(

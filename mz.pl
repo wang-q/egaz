@@ -8,6 +8,7 @@ use FindBin;
 use YAML qw(Dump Load DumpFile LoadFile);
 
 use MCE;
+use MCE::Flow;
 
 use Bio::Phylo::IO qw(parse);
 use Set::Scalar;
@@ -78,7 +79,7 @@ print "\n", "=" x 30, "\n";
 print "Processing...\n";
 
 my $suffix = '.maf';
-my @files = File::Find::Rule->file->name("*$suffix")->in(@dirs);
+my @files  = File::Find::Rule->file->name("*$suffix")->in(@dirs);
 printf "\n----%4s $suffix files ----\n", scalar @files;
 if ( scalar @files == 0 ) {
     @files = sort File::Find::Rule->file->name("*$suffix.gz")->in(@dirs);
@@ -108,14 +109,31 @@ my @species;         # species list gathered from maf files; and then shift targ
 
 {
     print "Get species list\n";
-    for my $file (@files) {
-        my $cmd = "gzip -dcf $file " . q{| perl -nl -e '/^s (\w+)/ or next; print $1' | sort | uniq};
+    my $worker = sub {
+        my ( $self, $chunk_ref, $chunk_id ) = @_;
+        my $file = $chunk_ref->[0];
+
+        my $cmd
+            = "gzip -dcf $file " . q{| perl -nl -e '/^s (\w+)/ or next; print $1' | sort | uniq};
         my @list = grep { defined $_ } split /\n/, `$cmd`;
         if ( @list > 2 ) {
             print "There are three or more species in [$file].\n";
             print Dump \@list;
             die;
         }
+
+        MCE->gather( $file, [@list] );
+    };
+    MCE::Flow::init {
+        chunk_size  => 1,
+        max_workers => $parallel,
+    };
+    my %list_of = mce_flow $worker, \@files;
+    MCE::Flow::finish;
+
+    print "Assign files to species\n";
+    for my $file (@files) {
+        my @list = @{$list_of{$file}};
         $seen{$_}++ for @list;
 
         my $chr_name = path($file)->basename( ".net$suffix", ".synNet$suffix", $suffix );

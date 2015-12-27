@@ -17,7 +17,10 @@ use List::MoreUtils qw(minmax firstidx);
 
 use AlignDB::IntSpan;
 use AlignDB::Stopwatch;
-use AlignDB::Util qw(:all);
+use AlignDB::Util qw(multi_align multi_align_matrix trim_head_tail);
+
+use lib "$FindBin::RealBin/lib";
+use MyUtil qw(string_to_set revcom read_sizes decode_header change_name_chopped);
 
 #----------------------------------------------------------#
 # GetOpt section
@@ -56,7 +59,6 @@ elsif ( !-e $size_file ) {
 
 if ( !$output ) {
     $output = path($cc_file)->basename;
-
     ($output) = grep {defined} split /\./, $output;
     $output = "$output.cc";
 }
@@ -79,7 +81,7 @@ my $yml = LoadFile($cc_file);
 my @cc       = @{ $yml->{cc} };
 my $count_of = $yml->{count};
 my @copies   = grep { $_ >= 2 } sort { $a <=> $b } keys %{$count_of};
-my @chrs     = sort keys %{ read_sizes($size_file) };
+my @chrs     = keys %{ read_sizes($size_file) };
 
 #----------------------------#
 # write piece sequences
@@ -253,7 +255,7 @@ sub best_pairwise {
     for ( my $i = 0; $i < $seq_number; $i++ ) {
         my @row = @{ $values->[$i] };
         splice @row, $i, 1;    # remove the score of this item
-        my ( $min, $max ) = minmax @row;
+        my ( $min, $max ) = minmax(@row);
         my $min_idx = firstidx { $_ == $min } @{ $values->[$i] };
         my @pair = ( $i, $min_idx );
         @pair = sort { $a <=> $b } @pair;

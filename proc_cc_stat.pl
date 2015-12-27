@@ -14,7 +14,7 @@ use AlignDB::IntSpan;
 use AlignDB::Stopwatch;
 
 use lib "$FindBin::RealBin/lib";
-use MyUtil qw(string_to_set);
+use MyUtil qw(string_to_set read_sizes);
 
 #----------------------------------------------------------#
 # GetOpt section

@@ -6,6 +6,7 @@ use autodie;
 use Carp;
 use Path::Tiny;
 use Tie::IxHash;
+use List::MoreUtils qw(minmax);
 
 use base 'Exporter';
 use vars qw(@ISA @EXPORT_OK %EXPORT_TAGS);
@@ -14,7 +15,8 @@ use vars qw(@ISA @EXPORT_OK %EXPORT_TAGS);
 %EXPORT_TAGS = (
     all => [
         qw{
-            string_to_set set_to_string change_strand read_sizes revcom exec_cmd get_seq_faidx decode_header
+            string_to_set set_to_string change_strand read_sizes revcom exec_cmd get_seq_faidx
+            decode_header change_name_chopped
             },
     ],
 );
@@ -207,3 +209,50 @@ sub decode_header {
 
     return \%info;
 }
+
+#----------------------------#
+# change fasta sequence names
+#----------------------------#
+sub change_name_chopped {
+    my $seq_of       = shift;
+    my $seq_names    = shift;
+    my $head_chopped = shift;
+    my $tail_chopped = shift;
+
+    my $new_seq_of = {};
+    my $new_names  = [];
+
+    for my $n ( @{$seq_names} ) {
+        my ( $chr, $set, $strand ) = string_to_set($n);
+        my $start = $set->min;
+        my $end   = $set->max;
+
+        if ( $strand eq '+' ) {
+            if ( $head_chopped->{$n} ) {
+                $start = $start + $head_chopped->{$n};
+            }
+            if ( $tail_chopped->{$n} ) {
+                $end = $end - $tail_chopped->{$n};
+            }
+        }
+        else {
+            if ( $head_chopped->{$n} ) {
+                $end = $end - $head_chopped->{$n};
+            }
+            if ( $tail_chopped->{$n} ) {
+                $start = $start + $tail_chopped->{$n};
+            }
+        }
+
+        my $new_set = AlignDB::IntSpan->new;
+        $new_set->add_pair( minmax( $start, $end ) );
+        my $new_name = $chr . "(" . $strand . "):" . $new_set->runlist;
+
+        push @{$new_names}, $new_name;
+        $new_seq_of->{$new_name} = $seq_of->{$n};
+    }
+
+    return ( $new_seq_of, $new_names );
+}
+
+1;

@@ -14,12 +14,48 @@ use vars qw(@ISA @EXPORT_OK %EXPORT_TAGS);
 %EXPORT_TAGS = (
     all => [
         qw{
-            read_sizes revcom exec_cmd get_seq_faidx decode_header
+            string_to_set set_to_string change_strand read_sizes revcom exec_cmd get_seq_faidx decode_header
             },
     ],
 );
 
 @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
+
+sub string_to_set {
+    my $node = shift;
+
+    my ( $chr, $runlist ) = split /:/, $node;
+    my $strand = "+";
+    if ( $chr =~ /\((.+)\)/ ) {
+        $strand = $1;
+        $chr =~ s/\(.+\)//;
+    }
+    my $set = AlignDB::IntSpan->new($runlist);
+
+    return ( $chr, $set, $strand );
+}
+
+sub set_to_string {
+    my $node = shift;
+
+    my $string = $node->[0] . "(" . $node->[2] . "):" . $node->[1]->runlist;
+
+    return $string;
+}
+
+sub change_strand {
+    my $strand = shift;
+
+    if ( $strand eq '+' ) {
+        return '-';
+    }
+    elsif ( $strand eq '-' ) {
+        return '+';
+    }
+    else {
+        return $strand;
+    }
+}
 
 sub read_sizes {
     my $file       = shift;

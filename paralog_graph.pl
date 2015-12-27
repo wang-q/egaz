@@ -14,6 +14,9 @@ use Graph;
 use AlignDB::IntSpan;
 use AlignDB::Stopwatch;
 
+use lib "$FindBin::RealBin/lib";
+use MyUtil qw(string_to_set change_strand);
+
 #----------------------------------------------------------#
 # GetOpt section
 #----------------------------------------------------------#
@@ -134,33 +137,6 @@ exit;
 #----------------------------------------------------------#
 # Subroutines
 #----------------------------------------------------------#
-sub string_to_set {
-    my $node = shift;
-
-    my ( $chr, $runlist ) = split /:/, $node;
-    my $strand = "+";
-    if ( $chr =~ /\((.+)\)/ ) {
-        $strand = $1;
-        $chr =~ s/\(.+\)//;
-    }
-    my $set = AlignDB::IntSpan->new($runlist);
-
-    return ( $chr, $set, $strand );
-}
-
-sub change_strand {
-    my $strand = shift;
-
-    if ( $strand eq '+' ) {
-        return '-';
-    }
-    elsif ( $strand eq '-' ) {
-        return '+';
-    }
-    else {
-        return $strand;
-    }
-}
 
 #sub string_to_hashobj {
 #    my $node = shift;

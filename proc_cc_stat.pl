@@ -12,7 +12,9 @@ use List::Util qw(sum0);
 
 use AlignDB::IntSpan;
 use AlignDB::Stopwatch;
-use AlignDB::Util qw(:all);
+
+use lib "$FindBin::RealBin/lib";
+use MyUtil qw(string_to_set);
 
 #----------------------------------------------------------#
 # GetOpt section
@@ -44,7 +46,6 @@ GetOptions(
 
 if ( !$output ) {
     $output = path($cc_file)->basename;
-
     ($output) = grep {defined} split /\./, $output;
     $output = "$output.cc";
 }

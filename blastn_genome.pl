@@ -14,6 +14,9 @@ use Set::Scalar;
 use AlignDB::IntSpan;
 use AlignDB::Stopwatch;
 
+use lib "$FindBin::RealBin/lib";
+use MyUtil qw(string_to_set revcom);
+
 #----------------------------------------------------------#
 # GetOpt section
 #----------------------------------------------------------#
@@ -210,31 +213,5 @@ close $blast_fh;
 $stopwatch->end_message;
 
 exit;
-
-#----------------------------------------------------------#
-# Subroutines
-#----------------------------------------------------------#
-sub string_to_set {
-    my $node = shift;
-
-    my ( $chr, $runlist ) = split /:/, $node;
-    my $strand = "+";
-    if ( $chr =~ /\((.+)\)/ ) {
-        $strand = $1;
-        $chr =~ s/\(.+\)//;
-    }
-    my $set = AlignDB::IntSpan->new($runlist);
-
-    return ( $chr, $set, $strand );
-}
-
-sub revcom {
-    my $seq = shift;
-
-    $seq =~ tr/ACGTMRWSYKVHDBNacgtmrwsykvhdbn-/TGCAKYWSRMBDHVNtgcakyswrmbdhvn-/;
-    my $seq_rc = reverse $seq;
-
-    return $seq_rc;
-}
 
 __END__

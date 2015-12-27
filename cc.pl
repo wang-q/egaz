@@ -13,6 +13,9 @@ use Graph;
 use AlignDB::IntSpan;
 use AlignDB::Stopwatch;
 
+use lib "$FindBin::RealBin/lib";
+use MyUtil qw(string_to_set set_to_string change_strand);
+
 #----------------------------------------------------------#
 # GetOpt section
 #----------------------------------------------------------#
@@ -27,7 +30,7 @@ cc.pl - connected components of paralog graph
       Options:
         --help          -?          brief help message
         --file          -f  STR     file
-        --output        -o  STR     output   
+        --output        -o  STR     output
 
 =cut
 
@@ -39,7 +42,6 @@ GetOptions(
 
 if ( !$output ) {
     $output = path($file)->basename;
-
     ($output) = grep {defined} split /\./, $output;
 }
 
@@ -199,42 +201,6 @@ sub cc_sorted {
     @cc = sort { scalar @{$b} <=> scalar @{$a} } @cc;
 
     return @cc;
-}
-
-sub string_to_set {
-    my $node = shift;
-
-    my ( $chr, $runlist ) = split /:/, $node;
-    my $strand = "+";
-    if ( $chr =~ /\((.+)\)/ ) {
-        $strand = $1;
-        $chr =~ s/\(.+\)//;
-    }
-    my $set = AlignDB::IntSpan->new($runlist);
-
-    return ( $chr, $set, $strand );
-}
-
-sub set_to_string {
-    my $node = shift;
-
-    my $string = $node->[0] . "(" . $node->[2] . "):" . $node->[1]->runlist;
-
-    return $string;
-}
-
-sub change_strand {
-    my $strand = shift;
-
-    if ( $strand eq '+' ) {
-        return '-';
-    }
-    elsif ( $strand eq '-' ) {
-        return '+';
-    }
-    else {
-        return $strand;
-    }
 }
 
 __END__

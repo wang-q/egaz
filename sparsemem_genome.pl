@@ -14,6 +14,9 @@ use List::MoreUtils qw(uniq);
 use AlignDB::IntSpan;
 use AlignDB::Stopwatch;
 
+use lib "$FindBin::RealBin/lib";
+use MyUtil qw(get_seq_faidx decode_header);
+
 #----------------------------------------------------------#
 # GetOpt section
 #----------------------------------------------------------#
@@ -175,106 +178,6 @@ sub run_sparsemem {
     my $result = `$cmd`;
 
     return $result;
-}
-
-sub get_seq_faidx {
-    my $genome   = shift;
-    my $location = shift;    # I:1-100
-
-    my $cmd = sprintf "samtools faidx %s %s", $genome, $location;
-    open my $fh_pipe, '-|', $cmd;
-
-    my $seq;
-    while ( my $line = <$fh_pipe> ) {
-        chomp $line;
-        if ( $line =~ /^[\w-]+/ ) {
-            $seq .= $line;
-        }
-    }
-    close($fh_pipe);
-
-    return $seq;
-}
-
-sub decode_header {
-    my $header = shift;
-
-    # S288C.chrI(+):27070-29557|species=S288C
-    my $head_qr = qr{
-                ([\w_]+)?           # name
-                [\.]?               # spacer
-                ((?:chr)?[\w-]+)    # chr name
-                (?:\((.+)\))?       # strand
-                [\:]                # spacer
-                (\d+)               # chr start
-                [\_\-]              # spacer
-                (\d+)               # chr end
-            }xi;
-
-    tie my %info, "Tie::IxHash";
-
-    $header =~ $head_qr;
-    my $name     = $1;
-    my $chr_name = $2;
-
-    if ( defined $name ) {
-        %info = (
-            chr_name   => $2,
-            chr_strand => $3,
-            chr_start  => $4,
-            chr_end    => $5,
-        );
-        if ( !defined $info{chr_strand} ) {
-            $info{chr_strand} = '+';
-        }
-        elsif ( $info{chr_strand} eq '1' ) {
-            $info{chr_strand} = '+';
-        }
-        elsif ( $info{chr_strand} eq '-1' ) {
-            $info{chr_strand} = '-';
-        }
-    }
-    elsif ( defined $chr_name ) {
-        $name = $header;
-        %info = (
-            chr_name   => $2,
-            chr_strand => $3,
-            chr_start  => $4,
-            chr_end    => $5,
-        );
-        if ( !defined $info{chr_strand} ) {
-            $info{chr_strand} = '+';
-        }
-        elsif ( $info{chr_strand} eq '1' ) {
-            $info{chr_strand} = '+';
-        }
-        elsif ( $info{chr_strand} eq '-1' ) {
-            $info{chr_strand} = '-';
-        }
-    }
-    else {
-        $name = $header;
-        %info = (
-            chr_name   => 'chrUn',
-            chr_strand => '+',
-            chr_start  => undef,
-            chr_end    => undef,
-        );
-    }
-    $info{name} = $name;
-
-    # additional keys
-    if ( $header =~ /\|(.+)/ ) {
-        my @parts = grep {defined} split /;/, $1;
-        for my $part (@parts) {
-            my ( $key, $value ) = split /=/, $part;
-            if ( defined $key and defined $value ) {
-                $info{$key} = $value;
-            }
-        }
-    }
-
-    return \%info;
 }
 
 __END__

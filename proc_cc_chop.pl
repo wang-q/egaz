@@ -8,11 +8,8 @@ use FindBin;
 use YAML::Syck qw(Dump Load DumpFile LoadFile);
 
 use Path::Tiny;
-
-use Bio::Seq;
-use Bio::SeqIO;
-
 use Set::Scalar;
+use List::Util qw(max);
 use List::MoreUtils qw(minmax firstidx);
 
 use AlignDB::IntSpan;
@@ -20,7 +17,7 @@ use AlignDB::Stopwatch;
 use AlignDB::Util qw(multi_align multi_align_matrix trim_head_tail);
 
 use lib "$FindBin::RealBin/lib";
-use MyUtil qw(string_to_set revcom read_sizes decode_header change_name_chopped);
+use MyUtil qw(string_to_set revcom get_seq_faidx read_sizes decode_header change_name_chopped);
 
 #----------------------------------------------------------#
 # GetOpt section
@@ -37,6 +34,7 @@ merge_node.pl - merge overlapped nodes of paralog graph
         --help          -?          brief help message
         --file          -f  STR     file
         --size          -s  STR     chr.sizes
+        --genome        -g  STR     reference genome file
         --output        -o  STR     output   
         --msa               STR     Aligning program, default is [mafft]
 
@@ -46,15 +44,23 @@ GetOptions(
     'help|?'     => sub { HelpMessage(0) },
     'file|f=s'   => \my $cc_file,
     'size|s=s'   => \my $size_file,
+    'genome|g=s' => \my $genome,
     'output|o=s' => \my $output,
     'msa=s' => \( my $msa = 'mafft' ),
 ) or HelpMessage(1);
 
 if ( !defined $size_file ) {
-    die "--size chr.sizes is needed\n";
+    die "--size is needed\n";
 }
-elsif ( !-e $size_file ) {
-    die "--size chr.sizes doesn't exist\n";
+elsif ( !path($size_file)->is_file ) {
+    die "--size doesn't exist\n";
+}
+
+if ( !defined $genome ) {
+    die "--genome is needed\n";
+}
+elsif ( !path($genome)->is_file ) {
+    die "--genome doesn't exist\n";
 }
 
 if ( !$output ) {
@@ -89,12 +95,6 @@ my @chrs     = keys %{ read_sizes($size_file) };
 {
     print "Write aligned cc sequences\n";
 
-    print " " x 4, "Load genomic sequences\n";
-    my %file_of = map { $_ => path($size_file)->parent->child( $_ . ".fa" )->stringify } @chrs;
-    my %genome_of
-        = map { $_ => Bio::SeqIO->new( -file => $file_of{$_}, -format => 'Fasta' )->next_seq->seq }
-        @chrs;
-
     # open file handlers
     my $seq_fh_of = {};
     for (@copies) {
@@ -112,11 +112,18 @@ my @chrs     = keys %{ read_sizes($size_file) };
         print " " x 8, "This cc has $copy copies\n";
 
         # Get subseq from genomic files
-        print " " x 12, "Get subseq from genomic files\n";
+        print " " x 12, "Get sequences from genomic files\n";
         my @heads = @{$c};
         my @seqs;
         for my $head ( @{$c} ) {
-            my $seq = seq_from_string( \%genome_of, $head );
+            my $info = decode_header($head);
+            my $location = sprintf "%s:%d-%d", $info->{chr_name}, $info->{chr_start},
+                $info->{chr_end};
+            my $seq = get_seq_faidx( $genome, $location );
+            printf " " x 16 . "Location: %s; Length %d\n", $location, length $seq;
+            if ( $info->{chr_strand} ne "+" ) {
+                $seq = revcom($seq);
+            }
             push @seqs, $seq;
         }
 
@@ -135,6 +142,8 @@ my @chrs     = keys %{ read_sizes($size_file) };
 
         my ( $new_seq_of, $new_heads )
             = change_name_chopped( $seq_of, \@heads, $head_chopped, $tail_chopped );
+        printf " " x 16 . "Chopping %d %d\n", max( values %$head_chopped ),
+            max( values %$tail_chopped );
 
         # names changed
         push @new_cc, $new_heads;
@@ -226,20 +235,9 @@ DumpFile( "$output.chr.runlist.yml", $set_chr_of );
 $stopwatch->end_message;
 exit;
 
-sub seq_from_string {
-    my $genome_of = shift;
-    my $head      = shift;
-
-    my ( $chr, $set, $strand ) = string_to_set($head);
-    my $seq = substr $genome_of->{$chr}, $set->min - 1, $set->size;
-    $seq = uc $seq;
-    if ( $strand ne "+" ) {
-        $seq = revcom($seq);
-    }
-
-    return $seq;
-}
-
+#----------------------------------------------------------#
+# Subroutines
+#----------------------------------------------------------#
 sub best_pairwise {
     my $seq_of    = shift;
     my $seq_names = shift;

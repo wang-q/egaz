@@ -28,11 +28,19 @@ use vars qw(@ISA @EXPORT_OK %EXPORT_TAGS);
 sub string_to_set {
     my $node = shift;
 
-    my ( $chr, $runlist ) = split /:/, $node;
+    my ( $chr_part, $runlist ) = split /:/, $node;
+
+    my $head_qr = qr{
+        (?:(?P<name>[\w_]+)\.)?    
+        (?P<chr_name>[\w-]+)        
+        (?:\((?P<chr_strand>.+)\))?  
+    }xi;
+    $chr_part =~ $head_qr;
+
+    my $chr    = $+{chr_name};
     my $strand = "+";
-    if ( $chr =~ /\((.+)\)/ ) {
-        $strand = $1;
-        $chr =~ s/\(.+\)//;
+    if ( defined $+{chr_strand} ) {
+        $strand = $+{chr_strand};
     }
     my $set = AlignDB::IntSpan->new($runlist);
 
@@ -175,7 +183,7 @@ sub decode_header {
     tie my %info, "Tie::IxHash";
 
     $header =~ $head_qr;
-    my $name = $1;
+    my $name     = $1;
     my $chr_name = $2;
 
     if ( defined $name or defined $chr_name ) {

@@ -7,7 +7,7 @@ use Getopt::Long qw(HelpMessage);
 use FindBin;
 use YAML::Syck qw(Dump Load DumpFile LoadFile);
 
-use File::Basename;
+use Path::Tiny;
 use Graph;
 use List::MoreUtils qw(uniq);
 
@@ -45,8 +45,15 @@ GetOptions(
     'v|verbose|v' => \my $verbose,
 ) or HelpMessage(1);
 
+die "Need --file\n" if @files == 0;
+for my $file (@files) {
+    if ( !path($file)->is_file ) {
+        die "--file [$file] doesn't exist\n";
+    }
+}
+
 if ( !$output ) {
-    $output = basename( $files[0] );
+    $output = path( $files[0] )->basename;
     ($output) = grep {defined} split /\./, $output;
     $output = "$output.merge.yml";
 }
@@ -67,13 +74,12 @@ $stopwatch->start_message("Paralog graph");
 my $g = Graph->new( directed => 0 );
 my %chrs;
 
-# nodes are in "chr1:50-100" form, and with attributes of chr name and
-# intspan object
+# nodes are in the form of "I(+):50-100"
 for my $file (@files) {
-    open my $in_fh, "<", $file;
-    while ( my $line = <$in_fh> ) {
-        chomp $line;
+    $stopwatch->block_message("Loading [$file]");
+    my @lines = path($file)->lines( { chomp => 1 } );
 
+    for my $line (@lines) {
         my @nodes = ( split /\t/, $line )[ 0, 1 ];
         for my $node (@nodes) {
             if ( !$g->has_vertex($node) ) {
@@ -136,6 +142,7 @@ my $merged_of = {};
 
     for my $c (@cc) {
         print "\n";
+        printf "    To merge %s nodes\n", scalar @{$c};
         my $chr = $g->get_vertex_attribute( $c->[0], "chr" );
         my $merge_set = AlignDB::IntSpan->new;
         my @strands;
@@ -161,14 +168,13 @@ my $merged_of = {};
         for my $node ( @{$c} ) {
             my $node_change = 0;
             if ($change) {
-                $node =~ /\(.\)/;
-                my $node_strand = $1;
+                my $node_strand = $g->get_vertex_attribute( $node, "strand" );
                 if ( $node_strand ne $strand ) {
                     $node_change = 1;
                 }
             }
             $merged_of->{$node} = { node => $merge_node, change => $node_change };
-            print "$node => $merge_node\n";
+            print " " x 8 . "$node => $merge_node\n";
         }
     }
 

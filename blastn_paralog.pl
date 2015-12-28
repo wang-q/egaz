@@ -7,7 +7,7 @@ use Getopt::Long qw(HelpMessage);
 use FindBin;
 use YAML qw(Dump Load DumpFile LoadFile);
 
-use File::Basename;
+use Path::Tiny;
 use Bio::SearchIO;
 
 use AlignDB::IntSpan;
@@ -41,7 +41,7 @@ blastn_paralog.pl - Link paralog sequences
                                     7 => "blastxml",      # BLAST XML
                                     9 => "blasttable",    # Hit Table
         --identity      -i  INT     default is [90]
-        --coverage      -c  FLOAT   default is [0.9]       
+        --coverage      -c  FLOAT   default is [0.95]       
 
 =cut
 
@@ -52,8 +52,15 @@ GetOptions(
     'file|f=s' => \my $file,
     'view|m=s'     => \( my $alignment_view = 0 ),
     'identity|i=i' => \( my $identity       = 90 ),
-    'coverage|c=f' => \( my $coverage       = 0.9 ),
+    'coverage|c=f' => \( my $coverage       = 0.95 ),
 ) or HelpMessage(1);
+
+if ( !defined $file ) {
+    die "Need --file\n";
+}
+elsif ( !path($file)->is_file ) {
+    die "--file [$file] doesn't exist\n";
+}
 
 my $view_name = {
     0 => "blast",         # Pairwise
@@ -63,7 +70,7 @@ my $view_name = {
 my $result_format = $view_name->{$alignment_view};
 
 if ( !$output ) {
-    $output = basename($file);
+    $output = path($file)->basename;
     ($output) = grep {defined} split /\./, $output;
     $output = "$output.blast.tsv";
 }
@@ -74,8 +81,9 @@ if ( !$output ) {
 $stopwatch->start_message("Link paralog...");
 
 #----------------------------------------------------------#
-# start update
+# load blast reports
 #----------------------------------------------------------#
+$stopwatch->block_message("load blast reports");
 open my $out_fh,   ">", $output;
 open my $blast_fh, '<', $file;
 

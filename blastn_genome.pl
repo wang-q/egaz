@@ -7,7 +7,7 @@ use Getopt::Long qw(HelpMessage);
 use FindBin;
 use YAML qw(Dump Load DumpFile LoadFile);
 
-use File::Basename;
+use Path::Tiny;
 use Bio::SearchIO;
 use Set::Scalar;
 
@@ -15,7 +15,7 @@ use AlignDB::IntSpan;
 use AlignDB::Stopwatch;
 
 use lib "$FindBin::RealBin/lib";
-use MyUtil qw(string_to_set revcom);
+use MyUtil qw(string_to_set get_seq_faidx decode_header);
 
 #----------------------------------------------------------#
 # GetOpt section
@@ -28,11 +28,11 @@ my $stopwatch = AlignDB::Stopwatch->new(
 
 =head1 NAME
 
-blastn_genome_locations.pl - Get exact genome locations of sequence pieces in a fasta file
+blastn_genome.pl - Get more paralog pieces by genomic blasting
     
 =head1 SYNOPSIS
 
-    perl blastn_genome_locations.pl -f <blast result file> [options]
+    perl blastn_genome.pl -f <blast result file> [options]
       Options:
         --help          -?          brief help message
         --file          -f  STR     blast result file
@@ -42,19 +42,35 @@ blastn_genome_locations.pl - Get exact genome locations of sequence pieces in a 
                                     7 => "blastxml",      # BLAST XML
                                     9 => "blasttable",    # Hit Table
         --identity      -i  INT     default is [90]
-        --coverage      -c  FLOAT   default is [0.9]       
+        --coverage      -c  FLOAT   default is [0.95]       
+        --genome        -g  STR     reference genome file
+        --output        -o  STR     output
 
 =cut
-
-my $output;
 
 GetOptions(
     'help|?'   => sub { HelpMessage(0) },
     'file|f=s' => \my $file,
-    'view|m=s'   => \( my $alignment_view = 0 ),
+    'view|m=s'     => \( my $alignment_view = 0 ),
     'identity|i=i' => \( my $identity       = 90 ),
-    'coverage|c=f' => \( my $coverage       = 0.9 ),
+    'coverage|c=f' => \( my $coverage       = 0.95 ),
+    'genome|g=s'   => \my $genome,
+    'output|o=s'   => \my $output,
 ) or HelpMessage(1);
+
+if ( !defined $file ) {
+    die "Need --file\n";
+}
+elsif ( !path($file)->is_file ) {
+    die "--file [$file] doesn't exist\n";
+}
+
+if ( !defined $genome ) {
+    die "--genome is needed\n";
+}
+elsif ( !path($genome)->is_file ) {
+    die "--genome doesn't exist\n";
+}
 
 my $view_name = {
     0 => "blast",         # Pairwise
@@ -64,35 +80,36 @@ my $view_name = {
 my $result_format = $view_name->{$alignment_view};
 
 if ( !$output ) {
-    $output = basename($file);
+    $output = path($file)->basename;
     ($output) = grep {defined} split /\./, $output;
-    $output = "$output.gl.fasta";
+    $output = "$output.bg.fasta";
 }
+path($output)->remove;
 
 #----------------------------------------------------------#
 # init
 #----------------------------------------------------------#
-$|++;
-
-$stopwatch->start_message("Get locations...");
+$stopwatch->start_message("Find paralogs...");
 
 #----------------------------------------------------------#
 # load blast reports
 #----------------------------------------------------------#
-print "load blast reports\n";
+$stopwatch->block_message("load blast reports");
+
+my %locations;    # genome locations
 open my $blast_fh, '<', $file;
-
-my %seq_of;    # store sequences of genome locations
-
 my $searchio = Bio::SearchIO->new(
     -format => $result_format,
     -fh     => $blast_fh,
 );
 
 QUERY: while ( my $result = $searchio->next_result ) {
-    my $query_name   = $result->query_name;
-    my $query_length = $result->query_length;
-    print " " x 4, "name: $query_name\tlength: $query_length\n";
+    my $query_name = $result->query_name;
+
+    # blasttable don't have $result->query_length
+    my $query_info   = decode_header($query_name);
+    my $query_length = $query_info->{chr_end} - $query_info->{chr_start} + 1;
+    print "Name $query_name\tLength $query_length\n";
     while ( my $hit = $result->next_hit ) {
         my $hit_name = $hit->name;
 
@@ -100,7 +117,7 @@ QUERY: while ( my $result = $searchio->next_result ) {
             my $query_set = AlignDB::IntSpan->new;
 
             # process the Bio::Search::HSP::HSPI object
-            my $hsp_length = $hsp->length( ['query'] );
+            my $hsp_length = $hsp->length('query');
 
             # use "+" for default strand
             # -1 = Minus strand, +1 = Plus strand
@@ -110,19 +127,13 @@ QUERY: while ( my $result = $searchio->next_result ) {
                 $hsp_strand = "-";
             }
 
-            my $align_obj   = $hsp->get_aln;                             # a Bio::SimpleAlign object
-            my ($query_obj) = $align_obj->each_seq_with_id($query_name);
-            my ($hit_obj)   = $align_obj->each_seq_with_id($hit_name);
-
-            my $q_start = $query_obj->start;
-            my $q_end   = $query_obj->end;
+            my ( $q_start, $q_end ) = $hsp->range('query');
             if ( $q_start > $q_end ) {
                 ( $q_start, $q_end ) = ( $q_end, $q_start );
             }
             $query_set->add_range( $q_start, $q_end );
 
-            my $h_start = $hit_obj->start;
-            my $h_end   = $hit_obj->end;
+            my ( $h_start, $h_end ) = $hsp->range('hit');
             if ( $h_start > $h_end ) {
                 ( $h_start, $h_end ) = ( $h_end, $h_start );
             }
@@ -130,16 +141,31 @@ QUERY: while ( my $result = $searchio->next_result ) {
             my $query_coverage = $query_set->size / $query_length;
             my $hsp_identity   = $hsp->percent_identity;
 
+            #print Dump {
+            #    hit_name     => $hit_name,
+            #    hsp_identity => $hsp_identity,
+            #    q_start      => $q_start,
+            #    q_end        => $q_end,
+            #    h_start      => $h_start,
+            #    h_end        => $h_end,
+            #    query_strand => $query_strand,
+            #    hit_strand   => $hit_strand,
+            #    hsp_strand   => $hsp_strand,
+            #};
+
             if ( $query_coverage >= $coverage and $hsp_identity >= $identity ) {
                 my $head = "$hit_name(+):$h_start-$h_end";
-                if ( !exists $seq_of{$head} ) {
-                    my $seq = $hit_obj->seq;
-                    $seq =~ tr/-//d;
-                    $seq = uc $seq;
-                    if ( $hsp_strand ne "+" ) {
-                        $seq = revcom($seq);
-                    }
-                    $seq_of{$head} = $seq;
+
+                if (    $hit_name eq $query_info->{chr_name}
+                    and $h_start eq $query_info->{chr_start}
+                    and $h_end eq $query_info->{chr_end} )
+                {
+                    print " " x 4 . "Find itself\n";
+                }
+                else {
+
+                    print " " x 4 . "Find new [$head]\n";
+                    $locations{$head}++;
                 }
             }
         }
@@ -148,17 +174,14 @@ QUERY: while ( my $result = $searchio->next_result ) {
 
 close $blast_fh;
 
-#----------------------------------------------------------#
-# write fasta
-#----------------------------------------------------------#
 {
     #----------------------------#
     # remove locations fully contained by others
     #----------------------------#
-    print "Merge nested locations\n";
+    print $stopwatch->block_message("Merge nested locations");
     my %chrs;
     my %set_of;
-    for my $node ( keys %seq_of ) {
+    for my $node ( keys %locations ) {
         my ( $chr, $set, $strand ) = string_to_set($node);
         $chrs{$chr}++;
         $set_of{$node} = { chr => $chr, set => $set };
@@ -166,7 +189,7 @@ close $blast_fh;
 
     my $to_remove = Set::Scalar->new;
     for my $chr ( sort keys %chrs ) {
-        my @nodes = sort grep { $set_of{$_}->{chr} eq $chr } keys %seq_of;
+        my @nodes = sort grep { $set_of{$_}->{chr} eq $chr } keys %locations;
 
         for my $i ( 0 .. $#nodes ) {
             my $node_i = $nodes[$i];
@@ -188,8 +211,8 @@ close $blast_fh;
     #----------------------------#
     # sort heads
     #----------------------------#
-    print "Sort locations\n";
-    my @sorted = map { $to_remove->has($_) ? () : $_ } keys %seq_of;
+    $stopwatch->block_message("Sort locations");
+    my @sorted = map { $to_remove->has($_) ? () : $_ } keys %locations;
 
     # start point on chromosomes
     @sorted = map { $_->[0] }
@@ -201,13 +224,17 @@ close $blast_fh;
         sort { $a->[1] cmp $b->[1] }
         map { /([\w.]+)\(.\)\:/; [ $_, $1 ] } @sorted;
 
-    print "Write outputs\n";
-    open my $out_fh, ">", $output;
-    for my $head (@sorted) {
-        print {$out_fh} ">$head\n";
-        print {$out_fh} $seq_of{$head}, "\n";
+    #----------------------------#
+    # write fasta
+    #----------------------------#
+    $stopwatch->block_message("Write outputs [$output]");
+    for my $node (@sorted) {
+        my ( $chr, $set, $strand ) = string_to_set($node);
+        my $location = "$chr:" . $set->runlist;
+        my $seq = get_seq_faidx( $genome, $location );
+        path($output)->append(">$node\n");
+        path($output)->append("$seq\n");
     }
-    close $out_fh;
 }
 
 $stopwatch->end_message;

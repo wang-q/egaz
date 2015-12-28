@@ -85,6 +85,9 @@ LINE: while ( my $line = <$in_fh> ) {
 
         my (@nodes) = ( split /\t/, $line )[ 0, 1 ];
         my ($hit_strand) = ( split /\t/, $line )[2];
+        if (! defined $hit_strand) {
+            $hit_strand = "+";
+        }
 
         # convert to merged node
         for my $node (@nodes) {

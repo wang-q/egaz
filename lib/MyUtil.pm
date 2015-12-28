@@ -3,6 +3,8 @@ use strict;
 use warnings;
 use autodie;
 
+use 5.010001;
+
 use Carp;
 use Path::Tiny;
 use Tie::IxHash;
@@ -15,8 +17,8 @@ use vars qw(@ISA @EXPORT_OK %EXPORT_TAGS);
 %EXPORT_TAGS = (
     all => [
         qw{
-            string_to_set set_to_string change_strand read_sizes revcom exec_cmd get_seq_faidx
-            decode_header change_name_chopped
+            string_to_set set_to_string change_strand read_sizes revcom exec_cmd run_sparsemem get_seq_faidx
+            get_size_faops decode_header encode_header change_name_chopped
             },
     ],
 );
@@ -110,6 +112,18 @@ sub exec_cmd {
     system $cmd;
 }
 
+sub run_sparsemem {
+    my $file   = shift;
+    my $genome = shift;
+    my $length = shift || 20;
+
+    my $cmd = sprintf "sparsemem -maxmatch -F -l %d -b -n -k 3 -threads 3 %s %s", $length, $genome,
+        $file;
+    my $result = `$cmd`;
+
+    return $result;
+}
+
 sub get_seq_faidx {
     my $genome   = shift;
     my $location = shift;    # I:1-100
@@ -129,48 +143,45 @@ sub get_seq_faidx {
     return $seq;
 }
 
+sub get_size_faops {
+    my $file = shift;
+
+    my $cmd = sprintf "faops size %s", $file;
+    my @lines = grep {defined} split /\n/, `$cmd`;
+
+    tie my %length_of, "Tie::IxHash";
+    for (@lines) {
+        my ( $key, $value ) = split /\t/;
+        $length_of{$key} = $value;
+    }
+
+    return \%length_of;
+}
+
 sub decode_header {
     my $header = shift;
 
     # S288C.chrI(+):27070-29557|species=S288C
     my $head_qr = qr{
-                ([\w_]+)?           # name
-                [\.]?               # spacer
-                ((?:chr)?[\w-]+)    # chr name
-                (?:\((.+)\))?       # strand
-                [\:]                # spacer
-                (\d+)               # chr start
-                [\_\-]              # spacer
-                (\d+)               # chr end
-            }xi;
+        (?:(?P<name>[\w_]+)\.)?    
+        (?P<chr_name>[\w-]+)        
+        (?:\((?P<chr_strand>.+)\))? 
+        [\:]                        # spacer
+        (?P<chr_start>\d+)    
+        [\_\-]                      # spacer
+        (?P<chr_end>\d+)        
+    }xi;
 
     tie my %info, "Tie::IxHash";
 
     $header =~ $head_qr;
-    my $name     = $1;
+    my $name = $1;
     my $chr_name = $2;
 
-    if ( defined $name ) {
+    if ( defined $name or defined $chr_name ) {
         %info = (
-            chr_name   => $2,
-            chr_strand => $3,
-            chr_start  => $4,
-            chr_end    => $5,
-        );
-        if ( !defined $info{chr_strand} ) {
-            $info{chr_strand} = '+';
-        }
-        elsif ( $info{chr_strand} eq '1' ) {
-            $info{chr_strand} = '+';
-        }
-        elsif ( $info{chr_strand} eq '-1' ) {
-            $info{chr_strand} = '-';
-        }
-    }
-    elsif ( defined $chr_name ) {
-        $name = $header;
-        %info = (
-            chr_name   => $2,
+            name       => $name,
+            chr_name   => $chr_name,
             chr_strand => $3,
             chr_start  => $4,
             chr_end    => $5,
@@ -188,13 +199,13 @@ sub decode_header {
     else {
         $name = $header;
         %info = (
+            name       => undef,
             chr_name   => 'chrUn',
             chr_strand => '+',
             chr_start  => undef,
             chr_end    => undef,
         );
     }
-    $info{name} = $name;
 
     # additional keys
     if ( $header =~ /\|(.+)/ ) {
@@ -208,6 +219,35 @@ sub decode_header {
     }
 
     return \%info;
+}
+
+sub encode_header {
+    my $info           = shift;
+    my $only_essential = shift;
+
+    my $header;
+    $header .= $info->{name};
+    $header .= "." . $info->{chr_name};
+    $header .= "(" . $info->{chr_strand} . ")";
+    $header .= ":" . $info->{chr_start};
+    $header .= "-" . $info->{chr_end};
+
+    # additional keys
+    if ( !$only_essential ) {
+        my %essential = map { $_ => 1 } qw{name chr_name chr_strand chr_start chr_end seq full_seq};
+        my @parts;
+        for my $key ( sort keys %{$info} ) {
+            if ( !$essential{$key} ) {
+                push @parts, $key . "=" . $info->{$key};
+            }
+        }
+        if (@parts) {
+            my $additional = join ";", @parts;
+            $header .= "|" . $additional;
+        }
+    }
+
+    return $header;
 }
 
 #----------------------------#

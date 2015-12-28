@@ -30,7 +30,7 @@ merge_node.pl - merge overlapped nodes of paralog graph
     perl merge_node.pl -f <file> [options]
       Options:
         --help          -?          brief help message
-        --file          -f  STR     file
+        --file          -f  STR     tsv link files
         --output        -o  STR     output   
         --coverage      -c  FLOAT   When larger than this ratio, merge nodes, default is [0.9]       
         --verbose       -v          verbose mode

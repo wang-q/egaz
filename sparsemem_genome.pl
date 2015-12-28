@@ -37,9 +37,10 @@ genome_locations.pl - Get exact genome locations of sequence pieces in a fasta f
         --help          -?          brief help message
         --file          -f  STR     query fasta file
         --genome        -g  STR     reference genome file
-        --length            INT     Match length of sparsemem, default is [50]
+        --length        -l  INT     Match length of sparsemem, default is [50]
         --coverage      -c  FLOAT   default is [0.9]
         --hole              INT     Fill holes (snp/indel) less than this length, default is [10]
+        --output        -o  STR     output
         --debug                     Write mem.yml for debugging
 
 =head1 REQUIREMENTS
@@ -50,8 +51,6 @@ genome_locations.pl - Get exact genome locations of sequence pieces in a fasta f
 
 =cut
 
-my $output;
-
 GetOptions(
     'help|?'     => sub { HelpMessage(0) },
     'file|f=s'   => \my $file,
@@ -59,6 +58,7 @@ GetOptions(
     'coverage|c=f' => \( my $coverage     = 0.9 ),
     'hole=i'       => \( my $hole_length  = 10 ),
     'length=i'     => \( my $match_length = 50 ),
+    'output|o=s'   => \( my $output ),
     'debug'        => \( my $debug ),
 ) or HelpMessage(1);
 
@@ -83,6 +83,7 @@ my $mem_result = run_sparsemem( $file, $genome, $match_length );
 
 tie my %info_of, "Tie::IxHash";
 my $cur_name;
+my %match_of;
 for my $line ( split /\n/, $mem_result ) {
     if ( $line =~ /^\>/ ) {
         $line =~ s/^\>\s*//;

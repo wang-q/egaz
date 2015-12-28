@@ -32,7 +32,7 @@ perl ~/Scripts/egaz/lpcna.pl --parallel 8 \
     -dl S288cvsselfalign
 ```
 
-### coverage stat
+###  blast and merge
 
 ```bash
 cd ~/Scripts/egas/data
@@ -49,45 +49,67 @@ fi
 
 cd ~/Scripts/egas/data/S288c_proc
 
-fasops axt2fas ../S288cvsselfalign/axtNet/*.axt.gz -l 1000 -o stdout > S288cvsselfalign.axt.fas
-fasops covers S288cvsselfalign.axt.fas -n target -o S288cvsselfalign.target.yml
-runlist stat --size ../S288c/chr.sizes S288cvsselfalign.target.yml -o ../S288c_result/S288c.1000.csv
-
-```
-
-###  blast and merge
-
-```bash
-cd ~/Scripts/egas/data/S288c_proc
-
 # genome
 find ../S288c -type f -name "*.fa" \
     | sort | xargs cat \
-    | perl -nl -e '/^>/ or uc; print' \
-    > S288c.genome.fa
+    | perl -nl -e '/^>/ or $_ = uc; print' \
+    > genome.fa
+faops size genome.fa > chr.sizes
 
-~/share/blast/bin/formatdb -p F -o T -i S288c.genome.fa
+# Correct genomic positions
+fasops axt2fas ../S288cvsselfalign/axtNet/*.axt.gz -l 1000 -o stdout > axt.fas
+fasops separate axt.fas --nodash -s .sep.fasta
 
-~/share/blast/bin/blastall -p blastn -F "m D" -m 0 -b 10 -v 10 -e 1e-3 -a 8 -i S288cvsselfalign.axt.fas -d S288c.genome.fa -o S288cvsselfalign.axt.blast
+perl ~/Scripts/egas/sparsemem_exact.pl -f target.sep.fasta -g genome.fa \
+    --length 500 -o replace.target.tsv
+fasops replace axt.fas replace.target.tsv -o axt.target.fas
 
-# Coreect queries positions in axt files
-perl ~/Scripts/egas/blastn_genome_location.pl -f S288cvsselfalign.axt.blast -m 0 -i 90 -c 0.95
+perl ~/Scripts/egas/sparsemem_exact.pl -f query.sep.fasta -g genome.fa \
+    --length 500 -o replace.query.tsv
+fasops replace axt.target.fas replace.query.tsv -o axt.correct.fas
 
-# paralog
-~/share/blast/bin/formatdb -p F -o T -i S288cvsselfalign.gl.fasta
+# coverage stats
+fasops covers axt.correct.fas -o axt.correct.yml
+runlist split axt.correct.yml -s .temp.yml
+runlist compare --op union target.temp.yml query.temp.yml -o axt.union.yml
+runlist stat --size chr.sizes axt.union.yml -o ../S288c_result/S288c.union.csv
 
-~/share/blast/bin/blastall -p blastn -F "m D" -m 0 -b 10 -v 10 -e 1e-3 -a 8 -i S288cvsselfalign.gl.fasta -d S288cvsselfalign.gl.fasta -o S288cvsselfalign.gl.blast
+# links by lastz-chain
+fasops links axt.correct.fas -o stdout \
+    | perl -nl -e 's/(target|query)\.//g; print;' \
+    > S288c.lastz.tsv
+
+# remove species names
+fasops separate axt.correct.fas --nodash -o stdout \
+    | perl -nl -e '/^>/ and s/^>(target|query)\./\>/; print;' \
+    > axt.gl.fasta
+
+# Get more paralogs
+~/share/blast/bin/formatdb -p F -o T -i genome.fa
+~/share/blast/bin/blastall -p blastn -F "m D" -m 9 -b 10 -v 10 -e 1e-3 -a 8 -i axt.gl.fasta -d genome.fa -o axt.blast
+perl ~/Scripts/egas/blastn_genome.pl -f axt.blast -m 9 -i 90 -c 0.95 -g genome.fa -o axt.bg.fasta
+
+if [ -e axt.bg.fasta ];
+then
+    cat axt.gl.fasta axt.bg.fasta > axt.all.fasta
+else
+    cat axt.gl.fasta > axt.all.fasta
+fi
+
+# link paralogs
+~/share/blast/bin/formatdb -p F -o T -i axt.all.fasta
+~/share/blast/bin/blastall -p blastn -F "m D" -m 9 -b 10 -v 10 -e 1e-3 -a 8 -i axt.all.fasta -d axt.all.fasta -o S288c.gl.blast
+perl ~/Scripts/egas/blastn_paralog.pl -f S288c.gl.blast -m 9 -i 90 -c 0.95
 
 # merge
-perl ~/Scripts/egas/blastn_paralog.pl -f S288cvsselfalign.gl.blast -m 0 -i 90 -c 0.9
+perl ~/Scripts/egas/merge_node.pl    -v -f S288c.lastz.tsv -f S288c.blast.tsv -o S288c.merge.yml -c 0.9
+perl ~/Scripts/egas/paralog_graph.pl -v -f S288c.lastz.tsv -f S288c.blast.tsv -m S288c.merge.yml --nonself -o S288c.merge.graph.yml
+perl ~/Scripts/egas/cc.pl               -f S288c.merge.graph.yml
+perl ~/Scripts/egas/proc_cc_chop.pl     -f S288c.cc.yml --size chr.sizes --genome genome.fa --msa mafft
+perl ~/Scripts/egas/proc_cc_stat.pl     -f S288c.cc.yml --size chr.sizes
 
-perl ~/Scripts/egas/merge_node.pl    -v -f S288cvsselfalign.blast.tsv -o S288cvsselfalign.merge.yml -c 0.9
-perl ~/Scripts/egas/paralog_graph.pl -v -f S288cvsselfalign.blast.tsv -m S288cvsselfalign.merge.yml --nonself -o S288cvsselfalign.merge.graph.yml
-perl ~/Scripts/egas/cc.pl               -f S288cvsselfalign.merge.graph.yml
-perl ~/Scripts/egas/proc_cc_chop.pl     -f S288cvsselfalign.cc.yml --size ../S288c/chr.sizes --msa mafft
-perl ~/Scripts/egas/proc_cc_stat.pl     -f S288cvsselfalign.cc.yml --size ../S288c/chr.sizes
-
-runlist stat --size ../S288c/chr.sizes S288cvsselfalign.cc.chr.runlist.yml;
+runlist stat --size chr.sizes S288c.cc.chr.runlist.yml
+perl ~/Scripts/egas/cover_figure.pl --size chr.sizes -f S288c.cc.chr.runlist.yml
 ```
 
 ### result & clean
@@ -95,12 +117,18 @@ runlist stat --size ../S288c/chr.sizes S288cvsselfalign.cc.chr.runlist.yml;
 ```bash
 cd ~/Scripts/egas/data/S288c_proc
 
-cp S288cvsselfalign.cc.yml ../S288c_result
-mv S288cvsselfalign.cc.csv ../S288c_result
-cp S288cvsselfalign.cc.chr.runlist.yml.csv ../S288c_result/S288cvsselfalign.chr.csv
+cp S288c.cc.yml ../S288c_result
+mv S288c.cc.csv ../S288c_result
+mv S288c.cc.chr.runlist.yml.csv ../S288c_result/S288c.chr.csv
+mv S288c.cc.chr.runlist.png ../S288c_result/S288c.chr.png
 
 # clean
 find . -type f -name "*genome.fa*" | xargs rm
-find . -type f -name "*gl.fasta*" | xargs rm
+find . -type f -name "*all.fasta*" | xargs rm
+find . -type f -name "*.sep.fasta" | xargs rm
 find . -type f -name "*.blast" | xargs rm
+find . -type f -name "axt.*" | xargs rm
+find . -type f -name "replace.*.tsv" | xargs rm
+find . -type f -name "*.log" | xargs rm
+find . -type f -name "*.temp.yml" | xargs rm
 ```

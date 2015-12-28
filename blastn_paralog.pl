@@ -13,6 +13,9 @@ use Bio::SearchIO;
 use AlignDB::IntSpan;
 use AlignDB::Stopwatch;
 
+use lib "$FindBin::RealBin/lib";
+use MyUtil qw(decode_header);
+
 #----------------------------------------------------------#
 # GetOpt section
 #----------------------------------------------------------#
@@ -81,16 +84,21 @@ my $searchio = Bio::SearchIO->new(
     -fh     => $blast_fh,
 );
 
-while ( my $result = $searchio->next_result ) {
-    my $query_name   = $result->query_name;
-    my $query_length = $result->query_length;
-    print "name $query_name\tlength $query_length\n";
+ALN: while ( my $result = $searchio->next_result ) {
+    my $query_name = $result->query_name;
+
+    # blasttable don't have $result->query_length
+    my $query_info   = decode_header($query_name);
+    my $query_length = $query_info->{chr_end} - $query_info->{chr_start} + 1;
+    print "Name $query_name\tLength $query_length\n";
     while ( my $hit = $result->next_hit ) {
         my $hit_name = $hit->name;
         next if $query_name eq $hit_name;
 
-        my $hit_length = $hit->length;
-        next if $hit_length < 100;
+        # blasttable don't have $hit->length
+        my $hit_info   = decode_header($hit_name);
+        my $hit_length = $hit_info->{chr_end} - $hit_info->{chr_start} + 1;
+
         my $query_set     = AlignDB::IntSpan->new;
         my $hit_set       = AlignDB::IntSpan->new;
         my $hit_set_plus  = AlignDB::IntSpan->new;
@@ -98,7 +106,6 @@ while ( my $result = $searchio->next_result ) {
         while ( my $hsp = $hit->next_hsp ) {
 
             # process the Bio::Search::HSP::HSPI object
-            my $hsp_length = $hsp->length( ['query'] );
             my $hsp_identity = $hsp->percent_identity;
             next if $hsp_identity < $identity;
 
@@ -110,19 +117,13 @@ while ( my $result = $searchio->next_result ) {
                 $hsp_strand = "-";
             }
 
-            my $align_obj   = $hsp->get_aln;                             # a Bio::SimpleAlign object
-            my ($query_obj) = $align_obj->each_seq_with_id($query_name);
-            my ($hit_obj)   = $align_obj->each_seq_with_id($hit_name);
-
-            my $q_start = $query_obj->start;
-            my $q_end   = $query_obj->end;
+            my ( $q_start, $q_end ) = $hsp->range('query');
             if ( $q_start > $q_end ) {
                 ( $q_start, $q_end ) = ( $q_end, $q_start );
             }
             $query_set->add_range( $q_start, $q_end );
 
-            my $h_start = $hit_obj->start;
-            my $h_end   = $hit_obj->end;
+            my ( $h_start, $h_end ) = $hsp->range('hit');
             if ( $h_start > $h_end ) {
                 ( $h_start, $h_end ) = ( $h_end, $h_start );
             }
@@ -134,6 +135,17 @@ while ( my $result = $searchio->next_result ) {
             elsif ( $hsp_strand eq "-" ) {
                 $hit_set_minus->add_range( $h_start, $h_end );
             }
+
+            #print Dump {
+            #    hsp_identity => $hsp_identity,
+            #    q_start      => $q_start,
+            #    q_end        => $q_end,
+            #    h_start      => $h_start,
+            #    h_end        => $h_end,
+            #    query_strand        => $query_strand,
+            #    hit_strand        => $hit_strand,
+            #    hsp_strand        => $hsp_strand,
+            #};
         }
         my $query_coverage = $query_set->size / $query_length;
         my $hit_coverage   = $hit_set->size / $hit_length;

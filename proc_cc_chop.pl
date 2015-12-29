@@ -95,24 +95,27 @@ my @chrs     = keys %{ read_sizes($size_file) };
 {
     print "Write aligned cc sequences\n";
 
-    # open file handlers
-    my $seq_fh_of = {};
     for (@copies) {
-        open my $fh, ">", "$output.copy$_.fas";
-        $seq_fh_of->{$_} = $fh;
+        path("$output.copy$_.fas")->remove;
     }
-    open $seq_fh_of->{pairwise}, ">", "$output.pairwise.fas";
+    path("$output.pairwise.fas")->remove;
 
     my @new_cc;
+    
+    my @bad_cc;
 
-    print " " x 4, "Get cc sequences\n";
+    print " " x 4 . "Get cc sequences\n";
     for my $c (@cc) {
         my $copy = scalar @{$c};
-        next if $copy < 2;
-        print " " x 8, "This cc has $copy copies\n";
+        if ( $copy < 2 ) {
+            printf " " x 8 . "Single cc [%s]\n", $c->[0];
+            push @bad_cc, $c;
+            next;
+        }
+        print " " x 8 . "This cc has $copy copies\n";
 
         # Get subseq from genomic files
-        print " " x 12, "Get sequences from genomic files\n";
+        print " " x 12 . "Get sequences from genomic files\n";
         my @heads = @{$c};
         my @seqs;
         for my $head ( @{$c} ) {
@@ -125,6 +128,15 @@ my @chrs     = keys %{ read_sizes($size_file) };
                 $seq = revcom($seq);
             }
             push @seqs, $seq;
+        }
+        my ( $l_min, $l_max ) = minmax( map { length $_ } @seqs );
+        my $diff_ratio = sprintf "%.3f", $l_min / $l_max;
+        print " " x 12 . "Ratio[$diff_ratio]\tMin [$l_min]\tMax[$l_max]\n";
+
+        if ( $diff_ratio < 0.8 ) {
+            print " " x 12 . "*** Don't align this cc. Check it.\n";
+            push @bad_cc, $c;
+            next;
         }
 
         # aligning
@@ -151,10 +163,10 @@ my @chrs     = keys %{ read_sizes($size_file) };
         # Write sequences
         print " " x 12, "Write sequences\n";
         for my $n ( @{$new_heads} ) {
-            printf { $seq_fh_of->{$copy} } ">%s\n", $n;
-            printf { $seq_fh_of->{$copy} } "%s\n",  $new_seq_of->{$n};
+            path("$output.copy$copy.fas")->append(">$n\n");
+            path("$output.copy$copy.fas")->append( $new_seq_of->{$n} . "\n" );
         }
-        print { $seq_fh_of->{$copy} } "\n";
+        path("$output.copy$copy.fas")->append("\n");
 
         # Write pairwise alignments
         print " " x 12, "Write pairwise alignments\n";
@@ -163,20 +175,19 @@ my @chrs     = keys %{ read_sizes($size_file) };
             my $realigned_pair
                 = multi_align( [ $new_seq_of->{ $p->[0] }, $new_seq_of->{ $p->[1] } ], $msa );
             for my $i ( 0 .. scalar @{$p} - 1 ) {
-                printf { $seq_fh_of->{pairwise} } ">%s",        $p->[$i];
-                printf { $seq_fh_of->{pairwise} } "|copy=%s\n", $copy;
-                printf { $seq_fh_of->{pairwise} } "%s\n",       uc $realigned_pair->[$i];
+                path("$output.pairwise.fas")->append( ">" . $p->[$i] . "|copy=" . $copy . "\n" );
+                path("$output.pairwise.fas")->append( uc( $realigned_pair->[$i] ) . "\n" );
             }
-            print { $seq_fh_of->{pairwise} } "\n";
+            path("$output.pairwise.fas")->append("\n");
         }
     }
 
-    close $seq_fh_of->{$_} for (@copies);
-    close $seq_fh_of->{pairwise};
-
+    DumpFile("BAD_cc.yml", \@bad_cc);
+    
     # we don't sort @new_cc
     @cc = @new_cc;
     print "\n";
+    
 }
 
 #----------------------------#

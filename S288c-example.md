@@ -77,7 +77,7 @@ runlist stat --size chr.sizes axt.union.yml -o ../S288c_result/S288c.union.csv
 # links by lastz-chain
 fasops links axt.correct.fas -o stdout \
     | perl -nl -e 's/(target|query)\.//g; print;' \
-    > S288c.lastz.tsv
+    > links.lastz.tsv
 
 # remove species names
 fasops separate axt.correct.fas --nodash -o stdout \
@@ -98,12 +98,12 @@ fi
 
 # link paralogs
 ~/share/blast/bin/formatdb -p F -o T -i axt.all.fasta
-~/share/blast/bin/blastall -p blastn -F "m D" -m 9 -b 10 -v 10 -e 1e-3 -a 8 -i axt.all.fasta -d axt.all.fasta -o S288c.gl.blast
-perl ~/Scripts/egas/blastn_paralog.pl -f S288c.gl.blast -m 9 -i 90 -c 0.95
+~/share/blast/bin/blastall -p blastn -F "m D" -m 9 -b 10 -v 10 -e 1e-3 -a 8 -i axt.all.fasta -d axt.all.fasta -o axt.gl.blast
+perl ~/Scripts/egas/blastn_paralog.pl -f axt.gl.blast -m 9 -i 90 -c 0.95 -o links.blast.tsv
 
 # merge
-perl ~/Scripts/egas/merge_node.pl    -v -f S288c.lastz.tsv -f S288c.blast.tsv -o S288c.merge.yml -c 0.9
-perl ~/Scripts/egas/paralog_graph.pl -v -f S288c.lastz.tsv -f S288c.blast.tsv -m S288c.merge.yml --nonself -o S288c.merge.graph.yml
+perl ~/Scripts/egas/merge_node.pl    -v -f links.lastz.tsv -f links.blast.tsv -o S288c.merge.yml -c 0.9
+perl ~/Scripts/egas/paralog_graph.pl -v -f links.lastz.tsv -f links.blast.tsv -m S288c.merge.yml --nonself -o S288c.merge.graph.yml
 perl ~/Scripts/egas/cc.pl               -f S288c.merge.graph.yml
 perl ~/Scripts/egas/proc_cc_chop.pl     -f S288c.cc.yml --size chr.sizes --genome genome.fa --msa mafft
 perl ~/Scripts/egas/proc_cc_stat.pl     -f S288c.cc.yml --size chr.sizes
@@ -132,3 +132,4 @@ find . -type f -name "replace.*.tsv" | xargs rm
 find . -type f -name "*.log" | xargs rm
 find . -type f -name "*.temp.yml" | xargs rm
 ```
+

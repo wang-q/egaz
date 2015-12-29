@@ -11,6 +11,9 @@ use Path::Tiny;
 use Graph;
 use List::MoreUtils qw(uniq);
 
+use MCE;
+use MCE::Flow Sereal => 1;
+
 use AlignDB::IntSpan;
 use AlignDB::Stopwatch;
 
@@ -33,6 +36,7 @@ merge_node.pl - merge overlapped nodes of paralog graph
         --file          -f  STR     tsv link files
         --output        -o  STR     output   
         --coverage      -c  FLOAT   When larger than this ratio, merge nodes, default is [0.9]       
+        --parallel      -p  INT     default is [8]
         --verbose       -v          verbose mode
 
 =cut
@@ -42,7 +46,8 @@ GetOptions(
     'files|f=s'  => \my @files,
     'output|o=s' => \my $output,
     'coverage|c=f' => \( my $coverage = 0.9 ),
-    'v|verbose|v' => \my $verbose,
+    'parallel|p=i' => \( my $parallel = 8 ),
+    'v|verbose|v'  => \my $verbose,
 ) or HelpMessage(1);
 
 die "Need --file\n" if @files == 0;
@@ -71,10 +76,9 @@ $stopwatch->start_message("Paralog graph");
 #----------------------------#
 # Read
 #----------------------------#
-my $g = Graph->new( directed => 0 );
-my %chrs;
-
 # nodes are in the form of "I(+):50-100"
+print $stopwatch->block_message("Convert nodes to sets");
+my $graph_of_chr = {};
 for my $file (@files) {
     $stopwatch->block_message("Loading [$file]");
     my @lines = path($file)->lines( { chomp => 1 } );
@@ -82,14 +86,17 @@ for my $file (@files) {
     for my $line (@lines) {
         my @nodes = ( split /\t/, $line )[ 0, 1 ];
         for my $node (@nodes) {
-            if ( !$g->has_vertex($node) ) {
-                $g->add_vertex($node);
-                my ( $chr, $set, $strand ) = string_to_set($node);
-                $g->set_vertex_attribute( $node, "chr",    $chr );
-                $g->set_vertex_attribute( $node, "set",    $set );
-                $g->set_vertex_attribute( $node, "strand", $strand );
+            my ( $chr, $set, $strand ) = string_to_set($node);
+            if ( !exists $graph_of_chr->{$chr} ) {
+                $graph_of_chr->{$chr} = Graph->new( directed => 0 );
+            }
+            if ( !$graph_of_chr->{$chr}->has_vertex($node) ) {
 
-                $chrs{$chr}++;
+                $graph_of_chr->{$chr}->add_vertex($node);
+                $graph_of_chr->{$chr}->set_vertex_attribute( $node, "chr",    $chr );
+                $graph_of_chr->{$chr}->set_vertex_attribute( $node, "set",    $set );
+                $graph_of_chr->{$chr}->set_vertex_attribute( $node, "strand", $strand );
+
                 print "Add node $node\n";
             }
         }
@@ -102,13 +109,19 @@ for my $file (@files) {
 #----------------------------#
 $stopwatch->block_message("Merge nodes");
 
-for my $chr ( sort keys %chrs ) {
-    print "Merge nodes in chromosome [$chr]\n";
-    my @nodes = sort grep { $g->get_vertex_attribute( $_, "chr" ) eq $chr } $g->vertices;
+my $worker = sub {
+    my ( $self, $chunk_ref, $chunk_id ) = @_;
 
+    my $chr = $chunk_ref->[0];
+    my $wid = MCE->wid;
+    print "* Process chromosome [$chr] by worker #$wid\n";
+
+    my $g     = $graph_of_chr->{$chr};
+    my @nodes = sort $g->vertices;
+    my @edges;
     for my $i ( 0 .. $#nodes ) {
         my $node_i = $nodes[$i];
-        print " " x 4, "Node $i / @{[$#nodes]}\t$node_i\n";
+        printf " " x 4 . "Node %d / %d\t%s\n", $i, $#nodes, $node_i;
         my $set_i = $g->get_vertex_attribute( $node_i, "set" );
         for my $j ( $i + 1 .. $#nodes ) {
             my $node_j = $nodes[$j];
@@ -121,11 +134,28 @@ for my $chr ( sort keys %chrs ) {
                 if (    $coverage_i >= $coverage
                     and $coverage_j >= $coverage )
                 {
-                    $g->add_edge( $nodes[$i], $nodes[$j] );
-                    print " " x 8, "Merge with Node $j / @{[$#nodes]}\t$node_j\n";
+                    push @edges, [ $nodes[$i], $nodes[$j] ];
+                    printf " " x 8 . "Merge with Node %d / %d\t%s\n", $j, $#nodes, $node_j;
                 }
             }
         }
+    }
+    printf "Gather %d edges\n", scalar @edges;
+
+    MCE->gather( $chr, \@edges );
+};
+MCE::Flow::init {
+    chunk_size  => 1,
+    max_workers => $parallel,
+};
+my %edge_of = mce_flow $worker, ( sort keys %{$graph_of_chr} );
+MCE::Flow::finish;
+
+$stopwatch->block_message("Add edges");
+for my $chr ( sort keys %{$graph_of_chr} ) {
+    print " " x 4 . "Add edges to chromosome [$chr]\n";
+    for my $edge ( @{ $edge_of{$chr} } ) {
+        $graph_of_chr->{$chr}->add_edge( @{$edge} );
     }
 }
 
@@ -134,7 +164,8 @@ for my $chr ( sort keys %chrs ) {
 #----------------------------#
 $stopwatch->block_message("Output merged");
 my $merged_of = {};
-{
+for my $chr ( sort keys %{$graph_of_chr} ) {
+    my $g  = $graph_of_chr->{$chr};
     my @cc = $g->connected_components;
 
     # filter single nodes
@@ -142,7 +173,7 @@ my $merged_of = {};
 
     for my $c (@cc) {
         print "\n";
-        printf "    To merge %s nodes\n", scalar @{$c};
+        printf " " x 4 . "Merge %s nodes\n", scalar @{$c};
         my $chr = $g->get_vertex_attribute( $c->[0], "chr" );
         my $merge_set = AlignDB::IntSpan->new;
         my @strands;
@@ -154,12 +185,12 @@ my $merged_of = {};
         }
         @strands = uniq(@strands);
         if ( @strands == 1 ) {
-            print " " x 4, "All nodes have the same strand\n";
+            print " " x 4 . "All nodes have the same strand\n";
             $strand = $strands[0];
             $change = 0;
         }
         else {
-            print " " x 4, "Nodes have different strands\n";
+            print " " x 4 . "Nodes have different strands\n";
             $strand = "+";
             $change = 1;
         }

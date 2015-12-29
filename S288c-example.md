@@ -85,9 +85,7 @@ fasops separate axt.correct.fas --nodash -o stdout \
     > axt.gl.fasta
 
 # Get more paralogs
-~/share/blast/bin/formatdb -p F -o T -i genome.fa
-~/share/blast/bin/blastall -p blastn -F "m D" -m 9 -b 10 -v 10 -e 1e-3 -a 8 -i axt.gl.fasta -d genome.fa -o axt.blast
-perl ~/Scripts/egas/blastn_genome.pl -f axt.blast -m 9 -i 90 -c 0.95 -g genome.fa -o axt.bg.fasta
+perl ~/Scripts/egas/blastn_genome.pl -c 0.95 -f axt.gl.fasta -g genome.fa -o axt.bg.fasta
 
 if [ -e axt.bg.fasta ];
 then
@@ -97,9 +95,7 @@ else
 fi
 
 # link paralogs
-~/share/blast/bin/formatdb -p F -o T -i axt.all.fasta
-~/share/blast/bin/blastall -p blastn -F "m D" -m 9 -b 10 -v 10 -e 1e-3 -a 8 -i axt.all.fasta -d axt.all.fasta -o axt.gl.blast
-perl ~/Scripts/egas/blastn_paralog.pl -f axt.gl.blast -m 9 -i 90 -c 0.95 -o links.blast.tsv
+perl ~/Scripts/egas/blastn_paralog.pl -f axt.all.fasta -c 0.95 -o links.blast.tsv
 
 # merge
 perl ~/Scripts/egas/merge_node.pl    -v -f links.lastz.tsv -f links.blast.tsv -o S288c.merge.yml -c 0.9
@@ -126,10 +122,7 @@ mv S288c.cc.chr.runlist.png ../S288c_result/S288c.chr.png
 find . -type f -name "*genome.fa*" | xargs rm
 find . -type f -name "*all.fasta*" | xargs rm
 find . -type f -name "*.sep.fasta" | xargs rm
-find . -type f -name "*.blast" | xargs rm
 find . -type f -name "axt.*" | xargs rm
 find . -type f -name "replace.*.tsv" | xargs rm
-find . -type f -name "*.log" | xargs rm
 find . -type f -name "*.temp.yml" | xargs rm
 ```
-

@@ -146,7 +146,7 @@ sub get_seq_faidx {
             $seq .= $line;
         }
     }
-    close($fh_pipe);
+    close $fh_pipe;
 
     return $seq;
 }

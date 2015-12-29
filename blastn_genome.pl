@@ -15,7 +15,7 @@ use AlignDB::IntSpan;
 use AlignDB::Stopwatch;
 
 use lib "$FindBin::RealBin/lib";
-use MyUtil qw(string_to_set get_seq_faidx decode_header);
+use MyUtil qw(exec_cmd string_to_set get_seq_faidx);
 
 #----------------------------------------------------------#
 # GetOpt section
@@ -35,30 +35,23 @@ blastn_genome.pl - Get more paralog pieces by genomic blasting
     perl blastn_genome.pl -f <blast result file> [options]
       Options:
         --help          -?          brief help message
-        --file          -f  STR     blast result file
-        --view          -M  STR     blast output format, default is [0]
-                                    `blastall -m`
-                                    0 => "blast",         # Pairwise
-                                    7 => "blastxml",      # BLAST XML
-                                    9 => "blasttable",    # Hit Table
-        --identity      -i  INT     default is [90]
-        --coverage      -c  FLOAT   default is [0.95]       
+        --file          -f  STR     query fasta file
+        --coverage      -c  FLOAT   coverage of identical matches, default is [0.9]       
         --genome        -g  STR     reference genome file
         --output        -o  STR     output
         --parallel      -p  INT     default is [8]
-        --chunk_size        INT     default is [1000000]
+        --chunk_size        INT     default is [500000]
 
 =cut
 
 GetOptions(
     'help|?'   => sub { HelpMessage(0) },
     'file|f=s' => \( my $file ),
-    'identity|i=i' => \( my $identity   = 90 ),
     'coverage|c=f' => \( my $coverage   = 0.95 ),
     'genome|g=s'   => \( my $genome ),
     'output|o=s'   => \( my $output ),
     'parallel|p=i' => \( my $parallel   = 8 ),
-    'chunk_size=i' => \( my $chunk_size = 1000000 ),
+    'chunk_size=i' => \( my $chunk_size = 500000 ),
 ) or HelpMessage(1);
 
 if ( !defined $file ) {
@@ -87,10 +80,13 @@ path($output)->remove;
 #----------------------------------------------------------#
 $stopwatch->start_message("Find paralogs...");
 
+$stopwatch->block_message("Build blast db");
+exec_cmd("makeblastdb -dbtype nucl -parse_seqids -in $genome");
+
 #----------------------------------------------------------#
 # load blast reports
 #----------------------------------------------------------#
-$stopwatch->block_message("load blast reports");
+$stopwatch->block_message("Run blast and parse reports");
 
 my $worker = sub {
     my ( $self, $chunk_ref, $chunk_id ) = @_;
@@ -104,10 +100,9 @@ my $worker = sub {
         next if $line =~ /^#/;
         chomp $line;
 
-        # Query id, Subject id, %identity, alignment length, mismatches, gap openings,
-        # q.start, q.end, s. start, s. end, e-value, bit score
+        # qseqid sseqid qstart qend sstart send qlen slen nident
         my @fields = grep {defined} split /\s+/, $line;
-        if ( @fields != 12 ) {
+        if ( @fields != 9 ) {
             print "Fields error: $line\n";
             next;
         }
@@ -115,36 +110,17 @@ my $worker = sub {
         my $query_name = $fields[0];
         my $hit_name   = $fields[1];
 
-        my $query_info   = decode_header($query_name);
-        my $query_length = $query_info->{chr_end} - $query_info->{chr_start} + 1;
+        my $query_length    = $fields[6];
+        my $identical_match = $fields[8];
 
-        my ( $q_start, $q_end ) = ( $fields[6], $fields[7] );
-        if ( $q_start > $q_end ) {
-            ( $q_start, $q_end ) = ( $q_end, $q_start );
-        }
-        my $query_set = AlignDB::IntSpan->new;
-        $query_set->add_pair( $q_start, $q_end );
-
-        my ( $h_start, $h_end ) = ( $fields[8], $fields[9] );
+        my ( $h_start, $h_end ) = ( $fields[4], $fields[5] );
         if ( $h_start > $h_end ) {
             ( $h_start, $h_end ) = ( $h_end, $h_start );
         }
 
-        my $query_coverage = $query_set->size / $query_length;
-        my $hsp_identity   = $fields[2];
+        my $query_coverage = $identical_match / $query_length;
 
-        #print Dump {
-        #    hit_name       => $hit_name,
-        #    hsp_identity   => $hsp_identity,
-        #    q_start        => $q_start,
-        #    q_end          => $q_end,
-        #    h_start        => $h_start,
-        #    h_end          => $h_end,
-        #    query_coverage => $query_coverage,
-        #    hsp_identity   => $hsp_identity,
-        #};
-
-        if ( $query_coverage >= $coverage and $hsp_identity >= $identity ) {
+        if ( $query_coverage >= $coverage ) {
             my $head = "$hit_name(+):$h_start-$h_end";
             $heads{$head}++;
         }
@@ -158,10 +134,17 @@ MCE::Flow::init {
     chunk_size  => $chunk_size,
     max_workers => $parallel,
 };
-my %locations = mce_flow_f $worker, $file;
+my $cmd
+    = sprintf "blastn -task megablast -evalue 0.01 -word_size 40"
+    . " -max_target_seqs 10 -dust no -soft_masking false"
+    . " -outfmt '7 qseqid sseqid qstart qend sstart send qlen slen nident'"
+    . " -num_threads %d -db %s -query %s", $parallel, $genome, $file;
+open my $fh_pipe, '-|', $cmd;
+my %locations = mce_flow_f $worker, $fh_pipe;
+close $fh_pipe;
 MCE::Flow::finish;
 
-$stopwatch->block_message( "Finish parse blast results", 1 );
+$stopwatch->block_message( "Finish blasting", 1 );
 
 {
     #----------------------------#

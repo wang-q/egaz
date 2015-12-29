@@ -8,7 +8,7 @@ use FindBin;
 use YAML::Syck qw(Dump Load DumpFile LoadFile);
 
 use File::Find::Rule;
-use File::Basename;
+use Path::Tiny;
 use Graph;
 
 use AlignDB::IntSpan;
@@ -36,6 +36,7 @@ merge_node.pl - merge overlapped nodes of paralog graph
         --merge         -m  STR     merged nodes, hashref
         --nonself       -n          skip self match, even for palindrome       
         --verbose       -v          verbose mode
+
 =cut
 
 GetOptions(
@@ -49,7 +50,7 @@ GetOptions(
 ) or HelpMessage(1);
 
 if ( !$output ) {
-    $output = basename( $graph_file ? $graph_file : $files[0] );
+    $output = path( $graph_file ? $graph_file : $files[0] )->basename;
     ($output) = grep {defined} split /\./, $output;
     $output = "$output.graph.yml";
 }

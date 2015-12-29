@@ -8,8 +8,6 @@ use FindBin;
 use YAML qw(Dump Load DumpFile LoadFile);
 
 use Path::Tiny;
-use Set::Scalar;
-
 use MCE;
 use MCE::Flow Sereal => 1;
 
@@ -48,20 +46,19 @@ blastn_genome.pl - Get more paralog pieces by genomic blasting
         --genome        -g  STR     reference genome file
         --output        -o  STR     output
         --parallel      -p  INT     default is [8]
-        --chunk_size        INT     default is [10000]
+        --chunk_size        INT     default is [1000000]
 
 =cut
 
 GetOptions(
     'help|?'   => sub { HelpMessage(0) },
     'file|f=s' => \( my $file ),
-    'view|m=s'     => \( my $alignment_view = 0 ),
-    'identity|i=i' => \( my $identity       = 90 ),
-    'coverage|c=f' => \( my $coverage       = 0.95 ),
+    'identity|i=i' => \( my $identity   = 90 ),
+    'coverage|c=f' => \( my $coverage   = 0.95 ),
     'genome|g=s'   => \( my $genome ),
     'output|o=s'   => \( my $output ),
-    'parallel|p=i' => \( my $parallel       = 8 ),
-    'chunk_size=i' => \( my $chunk_size     = 10000 ),
+    'parallel|p=i' => \( my $parallel   = 8 ),
+    'chunk_size=i' => \( my $chunk_size = 1000000 ),
 ) or HelpMessage(1);
 
 if ( !defined $file ) {
@@ -77,13 +74,6 @@ if ( !defined $genome ) {
 elsif ( !path($genome)->is_file ) {
     die "--genome doesn't exist\n";
 }
-
-my $view_name = {
-    0 => "blast",         # Pairwise
-    7 => "blastxml",      # BLAST XML
-    9 => "blasttable",    # Hit Table
-};
-my $result_format = $view_name->{$alignment_view};
 
 if ( !$output ) {
     $output = path($file)->basename;
@@ -106,10 +96,9 @@ my $worker = sub {
     my ( $self, $chunk_ref, $chunk_id ) = @_;
 
     my $wid = MCE->wid;
-    print "Process task [$chunk_id] by worker #$wid\n";
+    print "* Process task [$chunk_id] by worker #$wid\n";
 
     my @lines = @{$chunk_ref};
-    printf "%s\n", scalar @lines;
     my %heads;
     for my $line (@lines) {
         next if $line =~ /^#/;
@@ -128,8 +117,6 @@ my $worker = sub {
 
         my $query_info   = decode_header($query_name);
         my $query_length = $query_info->{chr_end} - $query_info->{chr_start} + 1;
-
-        print " " x 4 . "Name $query_name\tLength $query_length\n";
 
         my ( $q_start, $q_end ) = ( $fields[6], $fields[7] );
         if ( $q_start > $q_end ) {
@@ -160,16 +147,6 @@ my $worker = sub {
         if ( $query_coverage >= $coverage and $hsp_identity >= $identity ) {
             my $head = "$hit_name(+):$h_start-$h_end";
             $heads{$head}++;
-
-            if (    $hit_name eq $query_info->{chr_name}
-                and $h_start eq $query_info->{chr_start}
-                and $h_end eq $query_info->{chr_end} )
-            {
-                print " " x 8 . "Find itself\n";
-            }
-            else {
-                print " " x 8 . "Find [$head]\n";
-            }
         }
     }
 
@@ -190,41 +167,57 @@ $stopwatch->block_message( "Finish parse blast results", 1 );
     #----------------------------#
     # remove locations fully contained by others
     #----------------------------#
-    print $stopwatch->block_message("Merge nested locations");
-    my %chrs;
+    print $stopwatch->block_message("Convert nodes to sets");
+    my $nodes_of_chr = {};
     my %set_of;
     for my $node ( keys %locations ) {
         my ( $chr, $set, $strand ) = string_to_set($node);
-        $chrs{$chr}++;
-        $set_of{$node} = { chr => $chr, set => $set };
+        if ( !exists $nodes_of_chr->{$chr} ) {
+            $nodes_of_chr->{$chr} = [];
+        }
+        push @{ $nodes_of_chr->{$chr} }, $node;
+        $set_of{$node} = $set;
     }
 
-    my $to_remove = Set::Scalar->new;
-    for my $chr ( sort keys %chrs ) {
-        my @nodes = sort grep { $set_of{$_}->{chr} eq $chr } keys %locations;
+    print $stopwatch->block_message("Overlaps between sets");
+    my $worker = sub {
+        my ( $self, $chunk_ref, $chunk_id ) = @_;
 
+        my $chr = $chunk_ref->[0];
+        my $wid = MCE->wid;
+        print "* Process chromosome [$chr] by worker #$wid\n";
+
+        my @nodes = @{ $nodes_of_chr->{$chr} };
+        my %seen;
         for my $i ( 0 .. $#nodes ) {
             my $node_i = $nodes[$i];
-            my $set_i  = $set_of{$node_i}->{set};
+            my $set_i  = $set_of{$node_i};
             for my $j ( $i + 1 .. $#nodes ) {
                 my $node_j = $nodes[$j];
-                my $set_j  = $set_of{$node_j}->{set};
+                my $set_j  = $set_of{$node_j};
 
                 if ( $set_i->larger_than($set_j) ) {
-                    $to_remove->insert($node_j);
+                    $seen{$node_j}++;
                 }
                 elsif ( $set_j->larger_than($set_i) ) {
-                    $to_remove->insert($node_i);
+                    $seen{$node_i}++;
                 }
             }
         }
-    }
+        MCE->gather(%seen);
+    };
+    MCE::Flow::init {
+        chunk_size  => 1,
+        max_workers => $parallel,
+    };
+    my %to_remove = mce_flow $worker, ( sort keys %{$nodes_of_chr} );
+    MCE::Flow::finish;
 
     #----------------------------#
     # sort heads
     #----------------------------#
     $stopwatch->block_message("Sort locations");
-    my @sorted = map { $to_remove->has($_) ? () : $_ } keys %locations;
+    my @sorted = map { exists $to_remove{$_} ? () : $_ } keys %locations;
 
     # start point on chromosomes
     @sorted = map { $_->[0] }

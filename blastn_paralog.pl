@@ -42,10 +42,9 @@ blastn_paralog.pl - Link paralog sequences
                                     9 => "blasttable",    # Hit Table
         --identity      -i  INT     default is [90]
         --coverage      -c  FLOAT   default is [0.95]       
+        --output        -o  STR     output
 
 =cut
-
-my $output;
 
 GetOptions(
     'help|?'   => sub { HelpMessage(0) },
@@ -53,6 +52,7 @@ GetOptions(
     'view|m=s'     => \( my $alignment_view = 0 ),
     'identity|i=i' => \( my $identity       = 90 ),
     'coverage|c=f' => \( my $coverage       = 0.95 ),
+    'output|o=s'   => \my $output,
 ) or HelpMessage(1);
 
 if ( !defined $file ) {

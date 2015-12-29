@@ -32,12 +32,12 @@ blastn_genome.pl - Get more paralog pieces by genomic blasting
     
 =head1 SYNOPSIS
 
-    perl blastn_genome.pl -f <blast result file> [options]
+    perl blastn_genome.pl -f <fasta file> -g <genome file> [options]
       Options:
         --help          -?          brief help message
         --file          -f  STR     query fasta file
-        --coverage      -c  FLOAT   coverage of identical matches, default is [0.9]       
         --genome        -g  STR     reference genome file
+        --coverage      -c  FLOAT   coverage of identical matches, default is [0.9]       
         --output        -o  STR     output
         --parallel      -p  INT     default is [8]
         --chunk_size        INT     default is [500000]
@@ -81,10 +81,10 @@ path($output)->remove;
 $stopwatch->start_message("Find paralogs...");
 
 $stopwatch->block_message("Build blast db");
-exec_cmd("makeblastdb -dbtype nucl -parse_seqids -in $genome");
+exec_cmd("makeblastdb -dbtype nucl -in $genome");
 
 #----------------------------------------------------------#
-# load blast reports
+# Blast
 #----------------------------------------------------------#
 $stopwatch->block_message("Run blast and parse reports");
 

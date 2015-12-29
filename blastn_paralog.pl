@@ -8,13 +8,16 @@ use FindBin;
 use YAML qw(Dump Load DumpFile LoadFile);
 
 use Path::Tiny;
-use Bio::SearchIO;
+use MCE;
+use MCE::Flow Sereal => 1;
+use List::Util qw(max);
+use List::MoreUtils qw(uniq);
 
 use AlignDB::IntSpan;
 use AlignDB::Stopwatch;
 
 use lib "$FindBin::RealBin/lib";
-use MyUtil qw(decode_header);
+use MyUtil qw(exec_cmd);
 
 #----------------------------------------------------------#
 # GetOpt section
@@ -31,28 +34,24 @@ blastn_paralog.pl - Link paralog sequences
     
 =head1 SYNOPSIS
 
-    perl blastn_paralog.pl -f <blast result file> [options]
+    perl blastn_paralog.pl -f <fasta file> [options]
       Options:
         --help          -?          brief help message
-        --file          -f  STR     blast result file
-        --view          -M  STR     blast output format, default is [0]
-                                    `blastall -m`
-                                    0 => "blast",         # Pairwise
-                                    7 => "blastxml",      # BLAST XML
-                                    9 => "blasttable",    # Hit Table
-        --identity      -i  INT     default is [90]
-        --coverage      -c  FLOAT   default is [0.95]       
+        --file          -f  STR     query fasta file
+        --coverage      -c  FLOAT   default is [0.9]       
         --output        -o  STR     output
+        --parallel      -p  INT     default is [8]
+        --chunk_size        INT     default is [500000]
 
 =cut
 
 GetOptions(
     'help|?'   => sub { HelpMessage(0) },
-    'file|f=s' => \my $file,
-    'view|m=s'     => \( my $alignment_view = 0 ),
-    'identity|i=i' => \( my $identity       = 90 ),
-    'coverage|c=f' => \( my $coverage       = 0.95 ),
-    'output|o=s'   => \my $output,
+    'file|f=s' => \( my $file ),
+    'coverage|c=f' => \( my $coverage   = 0.9 ),
+    'output|o=s'   => \( my $output ),
+    'parallel|p=i' => \( my $parallel   = 8 ),
+    'chunk_size=i' => \( my $chunk_size = 500000 ),
 ) or HelpMessage(1);
 
 if ( !defined $file ) {
@@ -61,13 +60,6 @@ if ( !defined $file ) {
 elsif ( !path($file)->is_file ) {
     die "--file [$file] doesn't exist\n";
 }
-
-my $view_name = {
-    0 => "blast",         # Pairwise
-    7 => "blastxml",      # BLAST XML
-    9 => "blasttable",    # Hit Table
-};
-my $result_format = $view_name->{$alignment_view};
 
 if ( !$output ) {
     $output = path($file)->basename;
@@ -78,102 +70,84 @@ if ( !$output ) {
 #----------------------------------------------------------#
 # init
 #----------------------------------------------------------#
-$stopwatch->start_message("Link paralog...");
+$stopwatch->start_message("Link paralogs...");
+
+$stopwatch->block_message("Build blast db");
+exec_cmd("makeblastdb -dbtype nucl -in $file");
 
 #----------------------------------------------------------#
-# load blast reports
+# Blast
 #----------------------------------------------------------#
-$stopwatch->block_message("load blast reports");
-open my $out_fh,   ">", $output;
-open my $blast_fh, '<', $file;
+$stopwatch->block_message("Run blast and parse reports");
 
-my $searchio = Bio::SearchIO->new(
-    -format => $result_format,
-    -fh     => $blast_fh,
-);
+my $worker = sub {
+    my ( $self, $chunk_ref, $chunk_id ) = @_;
 
-ALN: while ( my $result = $searchio->next_result ) {
-    my $query_name = $result->query_name;
+    my $wid = MCE->wid;
+    print "* Process task [$chunk_id] by worker #$wid\n";
 
-    # blasttable don't have $result->query_length
-    my $query_info   = decode_header($query_name);
-    my $query_length = $query_info->{chr_end} - $query_info->{chr_start} + 1;
-    print "Name $query_name\tLength $query_length\n";
-    while ( my $hit = $result->next_hit ) {
-        my $hit_name = $hit->name;
+    my @lines = @{$chunk_ref};
+    my @links;
+    for my $line (@lines) {
+        next if $line =~ /^#/;
+        chomp $line;
+
+        # qseqid sseqid qstart qend sstart send qlen slen nident
+        my @fields = grep {defined} split /\s+/, $line;
+        if ( @fields != 9 ) {
+            print "Fields error: $line\n";
+            next;
+        }
+
+        my $query_name = $fields[0];
+        my $hit_name   = $fields[1];
         next if $query_name eq $hit_name;
 
-        # blasttable don't have $hit->length
-        my $hit_info   = decode_header($hit_name);
-        my $hit_length = $hit_info->{chr_end} - $hit_info->{chr_start} + 1;
+        my $query_length = $fields[6];
+        my $hit_length   = $fields[7];
+        my $max_length   = max( $query_length, $hit_length );
+        next if $query_length / $max_length < $coverage;
+        next if $hit_length / $max_length < $coverage;
 
-        my $query_set     = AlignDB::IntSpan->new;
-        my $hit_set       = AlignDB::IntSpan->new;
-        my $hit_set_plus  = AlignDB::IntSpan->new;
-        my $hit_set_minus = AlignDB::IntSpan->new;
-        while ( my $hsp = $hit->next_hsp ) {
+        my $identical_match = $fields[8];
+        next if $identical_match / $max_length < $coverage;
 
-            # process the Bio::Search::HSP::HSPI object
-            my $hsp_identity = $hsp->percent_identity;
-            next if $hsp_identity < $identity;
-
-            # use "+" for default strand
-            # -1 = Minus strand, +1 = Plus strand
-            my ( $query_strand, $hit_strand ) = $hsp->strand("list");
-            my $hsp_strand = "+";
-            if ( $query_strand + $hit_strand == 0 and $query_strand != 0 ) {
-                $hsp_strand = "-";
-            }
-
-            my ( $q_start, $q_end ) = $hsp->range('query');
-            if ( $q_start > $q_end ) {
-                ( $q_start, $q_end ) = ( $q_end, $q_start );
-            }
-            $query_set->add_range( $q_start, $q_end );
-
-            my ( $h_start, $h_end ) = $hsp->range('hit');
-            if ( $h_start > $h_end ) {
-                ( $h_start, $h_end ) = ( $h_end, $h_start );
-            }
-            $hit_set->add_range( $h_start, $h_end );
-
-            if ( $hsp_strand eq "+" ) {
-                $hit_set_plus->add_range( $h_start, $h_end );
-            }
-            elsif ( $hsp_strand eq "-" ) {
-                $hit_set_minus->add_range( $h_start, $h_end );
-            }
-
-            #print Dump {
-            #    hsp_identity => $hsp_identity,
-            #    q_start      => $q_start,
-            #    q_end        => $q_end,
-            #    h_start      => $h_start,
-            #    h_end        => $h_end,
-            #    query_strand        => $query_strand,
-            #    hit_strand        => $hit_strand,
-            #    hsp_strand        => $hsp_strand,
-            #};
-        }
-        my $query_coverage = $query_set->size / $query_length;
-        my $hit_coverage   = $hit_set->size / $hit_length;
-        next if $query_coverage < $coverage;
-        next if $hit_coverage < $coverage;
-
+        my ( $h_start, $h_end ) = ( $fields[4], $fields[5] );
         my $strand = "+";
-        if ( $hit_set_plus->size < $hit_set_minus->size ) {
-            print " " x 4, "Hit on revere strand\n";
+        if ( $h_start > $h_end ) {
+            ( $h_start, $h_end ) = ( $h_end, $h_start );
             $strand = "-";
         }
-        print {$out_fh} join "\t", $query_name, $hit_name, $strand,
-            $query_length,
-            $query_coverage, $query_set->runlist, $hit_length,
-            $hit_coverage, $hit_set->runlist;
-        print {$out_fh} "\n";
+
+        my $link = join "\t", $query_name, $hit_name, $strand;
+        push @links, $link;
     }
-}
-close $out_fh;
-close $blast_fh;
+
+    printf "Gather %d links\n", scalar @links;
+    MCE->gather(@links);
+};
+
+MCE::Flow::init {
+    chunk_size  => $chunk_size,
+    max_workers => $parallel,
+};
+my $cmd
+    = sprintf "blastn -task megablast -evalue 0.01 -word_size 40"
+    . " -max_target_seqs 10 -dust no -soft_masking false"
+    . " -outfmt '7 qseqid sseqid qstart qend sstart send qlen slen nident'"
+    . " -num_threads %d -db %s -query %s", $parallel, $file, $file;
+open my $fh_pipe, '-|', $cmd;
+my @all_links = mce_flow_f $worker, $fh_pipe;
+close $fh_pipe;
+MCE::Flow::finish;
+
+#----------------------------------------------------------#
+# Write
+#----------------------------------------------------------#
+$stopwatch->block_message("Remove duplicated links");
+@all_links = uniq(@all_links);
+
+path($output)->spew( map {"$_\n"} @all_links );
 
 $stopwatch->end_message;
 

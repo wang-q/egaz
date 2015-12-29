@@ -99,27 +99,10 @@ fasops separate axt.correct.fas --nodash -o stdout \
     > axt.gl.fasta
 
 # Get more paralogs
-~/share/blast/bin/formatdb -p F -o T -i genome.fa
-time ~/share/blast/bin/blastall -p blastn -F "m D" -m 9 -b 10 -v 10 -e 1e-3 -a 8 -i axt.gl.fasta -d genome.fa -o axt.blast
-# real    26m38.708s
-# user    39m37.918s
-# sys     1m0.377s
-
-time perl ~/Scripts/egas/blastn_genome.pl -f axt.blast -i 90 -c 0.95 -g genome.fa -o axt.bg.fasta
-# real    16m38.603s
-# user    45m36.872s
-# sys     0m23.664s
-
-# use megablast
-time ~/share/blast/bin/megablast -F "m D" -m 9 -b 10 -v 10 -e 1e-3 -a 8 -W 40 -i axt.gl.fasta -d genome.fa -o axt.mega.blast
-# real    6m52.867s
-# user    6m57.340s
-# sys     0m7.598s
-
-time perl ~/Scripts/egas/blastn_genome.pl -f axt.blast -i 90 -c 0.95 -g genome.fa -o axt.mega.bg.fasta
-# real    16m7.372s
-# user    45m13.837s
-# sys     0m24.092s
+time perl ~/Scripts/egas/blastn_genome.pl -c 0.95 -f axt.gl.fasta -g genome.fa -o axt.bg.fasta
+# real    8m46.682s
+# user    19m46.518s
+# sys     0m20.860s
 
 if [ -e axt.bg.fasta ];
 then
@@ -129,26 +112,10 @@ else
 fi
 
 # link paralogs
-~/share/blast/bin/formatdb -p F -o T -i axt.all.fasta
-time ~/share/blast/bin/blastall -p blastn -F "m D" -m 9 -b 10 -v 10 -e 1e-3 -a 8 -i axt.all.fasta -d axt.all.fasta -o axt.gl.blast
-# real    11m39.213s
-# user    31m45.073s
-# sys     0m4.815s
-
-time perl ~/Scripts/egas/blastn_paralog.pl -f axt.gl.blast -m 9 -i 90 -c 0.95 -o links.blast.tsv
-# real    6m50.536s
-# user    6m48.611s
-# sys     0m0.888s
-
-time ~/share/blast/bin/megablast -F "m D" -m 9 -b 10 -v 10 -e 1e-3 -a 8 -W 40 -i axt.all.fasta -d axt.all.fasta -o axt.mega.gl.blast
-# real    2m44.839s
-# user    4m5.204s
-# sys     0m1.598s
-
-time perl ~/Scripts/egas/blastn_paralog.pl -f axt.mega.gl.blast -m 9 -i 90 -c 0.95 -o links.mega.blast.tsv
-# real    4m8.656s
-# user    4m7.395s
-# sys     0m0.443s
+time perl ~/Scripts/egas/blastn_paralog.pl -f axt.all.fasta -c 0.95 -o links.blast.tsv
+# real    1m21.303s
+# user    3m46.030s
+# sys     0m1.738s
 
 # merge
 time perl ~/Scripts/egas/merge_node.pl    -v -f links.lastz.tsv -f links.blast.tsv -o Atha.merge.yml -c 0.95
@@ -181,9 +148,7 @@ mv Atha.cc.chr.runlist.png ../Atha_result/Atha.chr.png
 find . -type f -name "*genome.fa*" | xargs rm
 find . -type f -name "*all.fasta*" | xargs rm
 find . -type f -name "*.sep.fasta" | xargs rm
-find . -type f -name "*.blast" | xargs rm
 find . -type f -name "axt.*" | xargs rm
 find . -type f -name "replace.*.tsv" | xargs rm
-find . -type f -name "*.log" | xargs rm
 find . -type f -name "*.temp.yml" | xargs rm
 ```

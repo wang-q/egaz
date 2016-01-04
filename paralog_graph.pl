@@ -23,11 +23,11 @@ use MyUtil qw(string_to_set change_strand);
 
 =head1 NAME
 
-merge_node.pl - merge overlapped nodes of paralog graph
+paralog_graph.pl - merge overlapped nodes of paralog graph
     
 =head1 SYNOPSIS
 
-    perl merge_node.pl -f <file> [options]
+    perl paralog_graph.pl -f <links tsv file> [options]
       Options:
         --help          -?          brief help message
         --file          -f  STR     node pair tsv files

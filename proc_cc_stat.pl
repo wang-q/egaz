@@ -22,32 +22,31 @@ use MyUtil qw(string_to_set read_sizes);
 
 =head1 NAME
 
-merge_node.pl - merge overlapped nodes of paralog graph
+cc_copy_stat.pl - stats on copies of cc
     
 =head1 SYNOPSIS
 
-    perl merge_node.pl -f <file> [options]
+    perl cc_copy_stat.pl -f <cc file> [options]
       Options:
         --help          -?          brief help message
         --file          -f  STR     file
         --size          -s  STR     chr.sizes
         --output        -o  STR     output   
-        --low           -l  INT     low copies their own stats, default is [4]
+        --low           -l  INT     low copies have their own stats, default is [4]
 
 =cut
 
 GetOptions(
     'help|?'     => sub { HelpMessage(0) },
-    'file|f=s'   => \my $cc_file,
-    'size|s=s'   => \my $size_file,
-    'output|o=s' => \my $output,
+    'file|f=s'   => \( my $cc_file ),
+    'size|s=s'   => \( my $size_file ),
+    'output|o=s' => \( my $output ),
     'low|l=i' => \( my $low_cut = 4 ),
 ) or HelpMessage(1);
 
 if ( !$output ) {
     $output = path($cc_file)->basename;
     ($output) = grep {defined} split /\./, $output;
-    $output = "$output.cc";
 }
 
 #----------------------------------------------------------#
@@ -63,11 +62,58 @@ $stopwatch->start_message("Analysis [$cc_file]");
 #----------------------------#
 # load cc
 #----------------------------#
-my $yml = LoadFile($cc_file);
+my @cc = @{ LoadFile($cc_file) };
 
-my @cc         = @{ $yml->{cc} };
-my $count_of   = $yml->{count};
-my $runlist_of = $yml->{runlist};
+#----------------------------#
+# per copy count and runlist
+#----------------------------#
+my $count_of = {};
+for my $c (@cc) {
+    my $copy = scalar @{$c};
+    $count_of->{$copy}++;
+}
+
+my $runlist_of = {};
+for my $c (@cc) {
+    my $copy = scalar @{$c};
+    if ( !exists $runlist_of->{$copy} ) {
+        $runlist_of->{$copy} = {};
+    }
+    for ( @{$c} ) {
+        my ( $chr, $set, $strand ) = string_to_set($_);
+        if ( !exists $runlist_of->{$copy}{$chr} ) {
+            $runlist_of->{$copy}{$chr} = AlignDB::IntSpan->new;
+        }
+        $runlist_of->{$copy}{$chr}->add($set);
+    }
+}
+
+# set to runlist
+for my $key_i ( keys %{$runlist_of} ) {
+    for my $key_j ( keys %{ $runlist_of->{$key_i} } ) {
+        $runlist_of->{$key_i}{$key_j} = $runlist_of->{$key_i}{$key_j}->runlist;
+    }
+}
+
+#----------------------------#
+# per chr runlist
+#----------------------------#
+my $runlist_chr_of = {};
+for my $c (@cc) {
+    for ( @{$c} ) {
+        my ( $chr, $set, $strand ) = string_to_set($_);
+        if ( !exists $runlist_chr_of->{$chr} ) {
+            $runlist_chr_of->{$chr} = AlignDB::IntSpan->new;
+        }
+        $runlist_chr_of->{$chr}->add($set);
+    }
+}
+for my $key_i ( keys %{$runlist_chr_of} ) {
+    $runlist_chr_of->{$key_i} = $runlist_chr_of->{$key_i}->runlist;
+}
+
+print "Write cc chr runlist\n";
+DumpFile( "$output.cc.chr.runlist.yml", $runlist_chr_of );
 
 #----------------------------#
 # coverage
@@ -151,14 +197,15 @@ if ($size_file) {
             $runlist2_of->{$i}{$j} = $runlist2_of->{$i}{$j}->runlist;
         }
     }
-    DumpFile( "$output.runlist.yml", $runlist2_of );
+    print "Write cc runlist\n";
+    DumpFile( "$output.cc.runlist.yml", $runlist2_of );
 
     my $coverage_of = {};
     for my $key ( keys %{$sum_of} ) {
         $coverage_of->{$key} = $sum_of->{$key} / $length_of_genome;
     }
 
-    open my $fh, '>', "$output.csv";
+    open my $fh, '>', "$output.cc.csv";
     print {$fh} "copy,name,length,size,coverage,percent,count,piece,avg_size\n";
     for ( @low_copies, "all", ( exists $sum_of->{N} ? "N" : () ) ) {
         my $count;
@@ -190,7 +237,7 @@ if ($size_file) {
     # linkN is actually hightlight file
     my $link_fh_of = {};
     for ( 2 .. $low_cut, 'N' ) {
-        open my $fh, ">", "$output.link$_.txt";
+        open my $fh, ">", "$output.cc.link$_.txt";
         $link_fh_of->{$_} = $fh;
     }
 

@@ -187,6 +187,8 @@ $stopwatch->block_message( "Finish blasting", 1 );
                 }
             }
         }
+
+        printf "* Gather %s nested nodes\n", scalar keys %seen;
         MCE->gather(%seen);
     };
     MCE::Flow::init {

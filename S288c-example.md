@@ -101,7 +101,7 @@ perl ~/Scripts/egas/blastn_paralog.pl -f axt.all.fasta -c 0.95 -o links.blast.ts
 perl ~/Scripts/egas/merge_node.pl    -v -f links.lastz.tsv -f links.blast.tsv -o S288c.merge.yml -c 0.95
 perl ~/Scripts/egas/paralog_graph.pl -v -f links.lastz.tsv -f links.blast.tsv -m S288c.merge.yml --nonself -o S288c.merge.graph.yml
 perl ~/Scripts/egas/cc.pl               -f S288c.merge.graph.yml
-perl ~/Scripts/egas/proc_cc_chop.pl     -f S288c.cc.yml --size chr.sizes --genome genome.fa --msa mafft
+perl ~/Scripts/egas/proc_cc_chop.pl     -f S288c.cc.raw.yml --size chr.sizes --genome genome.fa --msa mafft
 perl ~/Scripts/egas/proc_cc_stat.pl     -f S288c.cc.yml --size chr.sizes
 
 runlist stat --size chr.sizes S288c.cc.chr.runlist.yml
@@ -159,9 +159,9 @@ cd ~/data/self_alignment/yeast/
 sh ~/data/self_alignment/yeast/1_real_chr.sh
 sh ~/data/self_alignment/yeast/3_self_cmd.sh
 time sh ~/data/self_alignment/yeast/4_proc_cmd.sh
-# real	2m44.199s
-# user	2m4.260s
-# sys	0m54.681s
+# real	1m8.817s
+# user	2m39.879s
+# sys	1m18.005s
 sh ~/data/self_alignment/yeast/5_circos_cmd.sh
 sh ~/data/self_alignment/yeast/6_feature_cmd.sh
 

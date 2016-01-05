@@ -124,7 +124,7 @@ time perl ~/Scripts/egas/merge_node.pl    -v -f links.lastz.tsv -f links.blast.t
 # sys     0m0.865s
 perl ~/Scripts/egas/paralog_graph.pl -v -f links.lastz.tsv -f links.blast.tsv -m Atha.merge.yml --nonself -o Atha.merge.graph.yml
 perl ~/Scripts/egas/cc.pl               -f Atha.merge.graph.yml
-time perl ~/Scripts/egas/proc_cc_chop.pl     -f Atha.cc.yml --size chr.sizes --genome genome.fa --msa mafft
+time perl ~/Scripts/egas/proc_cc_chop.pl     -f Atha.cc.raw.yml --size chr.sizes --genome genome.fa --msa mafft
 # real    25m31.983s
 # user    13m42.967s
 # sys     15m1.670s

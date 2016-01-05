@@ -9,12 +9,13 @@ use YAML::Syck qw(Dump Load DumpFile LoadFile);
 
 use Path::Tiny;
 use Graph;
+use List::MoreUtils qw(minmax);
 
 use AlignDB::IntSpan;
 use AlignDB::Stopwatch;
 
 use lib "$FindBin::RealBin/lib";
-use MyUtil qw(string_to_set set_to_string change_strand);
+use MyUtil qw(string_to_set set_to_string change_strand sort_cc);
 
 #----------------------------------------------------------#
 # GetOpt section
@@ -30,14 +31,17 @@ cc.pl - connected components of paralog graph
       Options:
         --help          -?          brief help message
         --file          -f  STR     file
+        --ratio         -r  FLOAT   break links between nodes if lengths differences
+                                    large than this ratio, default is [0.8]
         --output        -o  STR     output
 
 =cut
 
 GetOptions(
-    'help|?'     => sub { HelpMessage(0) },
-    'file|f=s'   => \my $file,
-    'output|o=s' => \my $output,
+    'help|?'   => sub { HelpMessage(0) },
+    'file|f=s' => \( my $file ),
+    'ratio|r=f' => \( my $ratio = 0.8 ),
+    'output|o=s' => \( my $output ),
 ) or HelpMessage(1);
 
 if ( !$output ) {
@@ -54,40 +58,42 @@ $stopwatch->start_message("Analysis [$file]");
 #----------------------------------------------------------#
 # Start
 #----------------------------------------------------------#
-print "Load graph $file\n";
+$stopwatch->block_message("Load graph [$file]");
+
 my $g = LoadFile($file);
 my $gnew = Graph->new( directed => 0 );
 
 #----------------------------#
 # create cc
 #----------------------------#
-print "Get sorted cc\n";
-my @cc = cc_sorted($g);
+$stopwatch->block_message("Get sorted cc");
+
+my @cc = sort_cc($g->connected_components);
 
 #----------------------------#
 # Change strands of nodes based on first node in cc
 #----------------------------#
-print "Change strands\n";
-my $count_old_of = {};
+$stopwatch->block_message("Change strands and break bad links");
 for my $c (@cc) {
     my @nodes = @{$c};
     my $copy  = scalar @nodes;
-    $count_old_of->{$copy}++;
 
     next if $copy == 1;
 
-    print " " x 4, "Copy number of this cc is $copy\n";
+    print "Copy number of this cc is $copy\n";
 
     # transform string to array_ref
     my @nodes_ref = map { [ ( string_to_set($_) )[ 0, 1 ], undef ] } @nodes;
-    $nodes_ref[0]->[2] = "+";    # set first node to positive strand
+
+    # set first node to positive strand
+    $nodes_ref[0]->[2] = "+";
 
     my $assigned  = AlignDB::IntSpan->new(0);
     my $unhandled = AlignDB::IntSpan->new;
     $unhandled->add_pair( 0, $copy - 1 );
     $unhandled->remove($assigned);
 
-    my @edges;                   # store edge pairs. not all nodes connected
+    my @edges;    # store edge pairs. not all nodes connected
     while ( $assigned->size < $copy ) {
         for my $i ( $assigned->elements ) {
             for my $j ( $unhandled->elements ) {
@@ -97,7 +103,7 @@ for my $c (@cc) {
 
                 my $edge_strand = $g->get_edge_attribute( $nodes[$i], $nodes[$j], "strand" );
                 if ( $edge_strand eq "-" ) {
-                    printf " " x 8 . "change strand of %s\n", $nodes[$j];
+                    printf " " x 4 . "change strand of %s\n", $nodes[$j];
                     $nodes_ref[$j]->[2] = change_strand( $nodes_ref[$i]->[2] );
                 }
                 else {
@@ -105,7 +111,19 @@ for my $c (@cc) {
                 }
                 $unhandled->remove($j);
                 $assigned->add($j);
-                push @edges, [ $i, $j ];
+
+                my $l_i = $nodes_ref[$i]->[1]->size;
+                my $l_j = $nodes_ref[$j]->[1]->size;
+                my ( $l_min, $l_max ) = minmax( $l_i, $l_j );
+                my $diff_ratio = sprintf "%.3f", $l_min / $l_max;
+
+                if ( $diff_ratio < $ratio ) {
+                    printf " " x 4 . "Break links between %s %s\n", $nodes[$i], $nodes[$j];
+                    printf " " x 4 . "Ratio[%s]\tMin [%s]\tMax[%s]\n", $diff_ratio, $l_min, $l_max;
+                }
+                else {
+                    push @edges, [ $i, $j ];
+                }
             }
         }
     }
@@ -121,86 +139,13 @@ for my $c (@cc) {
 #----------------------------#
 # recreate cc
 #----------------------------#
-print "Get sorted new cc\n";
-my @cc_new   = cc_sorted($gnew);
-my $count_of = {};
-for my $c (@cc_new) {
-    my $copy = scalar @{$c};
-    $count_of->{$copy}++;
-}
+$stopwatch->block_message("Get sorted new cc");
+my @cc_new = sort_cc($gnew->connected_components);
 
-#----------------------------#
-# runlist
-#----------------------------#
-my @copies = sort { $a <=> $b } keys %{$count_of};
-my $set_of = {};
-for my $c (@cc) {
-    my $copy = scalar @{$c};
-    if ( !exists $set_of->{$copy} ) {
-        $set_of->{$copy} = {};
-    }
-    for ( @{$c} ) {
-        my ( $chr, $set, $strand ) = string_to_set($_);
-        if ( !exists $set_of->{$copy}{$chr} ) {
-            $set_of->{$copy}{$chr} = AlignDB::IntSpan->new;
-        }
-        $set_of->{$copy}{$chr}->add($set);
-    }
-}
-
-for my $key_i ( keys %{$set_of} ) {
-    for my $key_j ( keys %{ $set_of->{$key_i} } ) {
-        $set_of->{$key_i}{$key_j} = $set_of->{$key_i}{$key_j}->runlist;
-    }
-}
-
-DumpFile(
-    "$output.cc.yml",
-    {   count   => $count_of,
-        cc      => \@cc_new,
-        runlist => $set_of,
-    }
-);
-
-DumpFile( "$output.new.graph.yml", $gnew );
+$stopwatch->block_message("Write [$output.cc.raw.yml]");
+DumpFile( "$output.cc.raw.yml", \@cc_new );
 
 $stopwatch->end_message;
 exit;
-
-sub cc_sorted {
-    my $g  = shift;
-    my @cc = $g->connected_components;
-
-    # sort by chromosome order within cc
-    for my $c (@cc) {
-        my @unsorted = @{$c};
-
-        # start point on chromosomes
-        @unsorted = map { $_->[0] }
-            sort { $a->[1] <=> $b->[1] }
-            map { /[\w.]+\(.\)\:(\d+)/; [ $_, $1 ] } @unsorted;
-
-        # chromosome name
-        @unsorted = map { $_->[0] }
-            sort { $a->[1] cmp $b->[1] }
-            map { /([\w.]+)\(.\)\:/; [ $_, $1 ] } @unsorted;
-
-        $c = [@unsorted];
-    }
-
-    # sort by first node's chromosome order between cc
-    @cc = map { $_->[0] }
-        sort { $a->[1] <=> $b->[1] }
-        map { $_->[0] =~ /[\w.]+\(.\)\:(\d+)/; [ $_, $1 ] } @cc;
-
-    @cc = map { $_->[0] }
-        sort { $a->[1] cmp $b->[1] }
-        map { $_->[0] =~ /([\w.]+)\(.\)\:/; [ $_, $1 ] } @cc;
-
-    # sort by nodes number between cc
-    @cc = sort { scalar @{$b} <=> scalar @{$a} } @cc;
-
-    return @cc;
-}
 
 __END__

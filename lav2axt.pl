@@ -28,7 +28,22 @@ lav2axt.pl - convert .lav files to .axt files
         --input         -i  STR     input lav file
         --output        -o  STR     output axt file
 
+=head1 lav format
+
+    http://www.bx.psu.edu/miller_lab/dist/lav_format.html
+
+Here <start> and <stop> are origin 1 (i.e. the first base in the original given sequence is called
+"1") and inclusive (both endpoints are included in the interval).
+
+=head1 axt format
+
+    https://genome.ucsc.edu/goldenPath/help/axt.html
+
+If the strand value is "-", the values of the aligning organism's start and end fields are relative
+to the reverse-complemented coordinates of its chromosome.
+
 =cut
+
 
 GetOptions(
     'help|?'     => sub { HelpMessage(0) },
@@ -39,7 +54,7 @@ GetOptions(
 $lavfile =~ s/\\/\//g;
 unless ($output) {
     $output = $lavfile;
-    $output =~ s/\.lav$/\.axt/ || die "Not a .lav file.\n";
+    $output =~ s/\.lav$/\.axt/ or die "Not a .lav file.\n";
 }
 
 #----------------------------------------------------------#
@@ -58,24 +73,35 @@ for my $lav (@lavs) {
     #----------------------------#
     # s-stanza
     #----------------------------#
+    # "<filename>[-]" <start> <stop> [<rev_comp_flag> <sequence_number>]
     $lav =~ /s {\s+(.+?)\s+}/s;
     my $s_stanza = $1;
     my @s_lines  = $s_stanza =~ /(.+ \s+ \d+ \s+ \d+ \s+ \d+ \s+ \d+)/gx;
-    unless ( ( scalar @s_lines ) == 2 ) { die "s-stanza error.\n"; }
+    if ( scalar @s_lines != 2 ) {
+        die "s-stanza error.\n";
+    }
 
-    $s_lines[0] =~ /\s*\"?(.+?)\-?\"? \s+ \d+ \s+ \d+ \s+ (\d+) \s+ (\d+)/x;
-    my ( $t_file, $t_strand, $t_contig ) = ( $1, $2, $3 );
-
-    $s_lines[1] =~ /\s*\"?(.+?)\-?\"? \s+ \d+ \s+ \d+ \s+ (\d+) \s+ (\d+)/x;
-    my ( $q_file, $q_strand, $q_contig ) = ( $1, $2, $3 );
-
+    $s_lines[0] =~ /\s*\"?(.+?)\-?\"? \s+ (\d+) \s+ (\d+) \s+ (\d+) \s+ (\d+)/x;
+    my ( $t_file, $t_seq_start, $t_seq_stop, $t_strand, $t_contig ) = ( $1, $2, $3, $4, $5 );
+    if ($t_seq_start != 1) {
+        die "Target sequence doesn't start at 1\n";
+    }
+  
+    $s_lines[1] =~ /\s*\"?(.+?)\-?\"? \s+ (\d+) \s+ (\d+) \s+ (\d+) \s+ (\d+)/x;
+    my ( $q_file, $q_seq_start, $q_seq_stop, $q_strand, $q_contig ) = ( $1, $2, $3, $4, $5 );
+    if ($q_seq_start != 1) {
+        die "Query sequence doesn't start at 1\n";
+    }
+  
     #----------------------------#
     # h-stanza
     #----------------------------#
     $lav =~ /h {\s+(.+?)\s+}/s;
     my $h_stanza = $1;
     my @h_lines  = $h_stanza =~ /(.+)/g;
-    unless ( ( scalar @h_lines ) == 2 ) { die "h-stanza error.\n"; }
+    if ( scalar @h_lines != 2 ) {
+        die "h-stanza error.\n";
+    }
 
     #----------------------------#
     # generate two sequences
@@ -107,13 +133,13 @@ for my $lav (@lavs) {
     # generate axt alignments
     #----------------------------#
     my @a_stanzas = $lav =~ /a {\s+(.+?)\s+}/sg;
-    foreach my $a_stanza (@a_stanzas) {
+    for my $a_stanza (@a_stanzas) {
         my $alignment_target  = '';
         my $alignment_query   = '';
         my @align_pieces      = $a_stanza =~ /\s*l (\d+ \d+ \d+ \d+) \d+/g;
         my $former_end_target = '';
         my $former_end_query  = '';
-        foreach my $align_piece (@align_pieces) {
+        for my $align_piece (@align_pieces) {
             unless ( $align_piece =~ /(\d+) (\d+) (\d+) (\d+)/g ) {
                 die "l-line error\n";
             }
@@ -135,9 +161,9 @@ for my $lav (@lavs) {
             my $length_target = $t_end - $t_begin + 1 + ( length $q_del );
             my $length_query  = $q_end - $q_begin + 1 + ( length $t_del );
             $alignment_target
-                .= ( substr $t_seq, ( $t_begin - 1 - ( length $q_del ) ), $length_target );
+                .= substr( $t_seq, ( $t_begin - 1 - ( length $q_del ) ), $length_target );
             $alignment_query
-                .= ( substr $q_seq, ( $q_begin - 1 - ( length $t_del ) ), $length_query );
+                .= substr( $q_seq, ( $q_begin - 1 - ( length $t_del ) ), $length_query );
             if ( ( length $alignment_query ) ne ( length $alignment_target ) ) {
                 die "Target length doesn't match query's in the alignment.\n";
             }
@@ -147,7 +173,7 @@ for my $lav (@lavs) {
 
         # b-line, begins
         unless ( $a_stanza =~ /\s*b (\d+) (\d+)/ ) {
-            die "There isn't a s-line.\n";
+            die "There isn't a b-line.\n";
         }
         my $t_from = $1;
         my $q_from = $2;

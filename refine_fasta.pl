@@ -118,8 +118,7 @@ my $worker = sub {
     my $outfile = path($infile)->basename;
     $outfile = $out_dir . "/$outfile";
 
-    open my $out_fh, '>', $outfile
-        or die("Cannot open OUT file $outfile");
+    open my $out_fh, '>', $outfile;
     for my $name ( @{$seq_names} ) {
         my $seq = $seq_of->{$name};
         print {$out_fh} ">", $name, "\n";
@@ -140,12 +139,15 @@ my $worker_block = sub {
     # don't use $/ = "\n\n", which cause bioperl panic
     open my $in_fh, "<", $infile;
     my $content = '';
+    my $count   = 0;
     while ( my $line = <$in_fh> ) {
         if ( $line =~ /^\s+$/ and $content =~ /\S/ ) {
             my @lines = grep {/\S/} split /\n/, $content;
             $content = '';
             die "headers not equal to seqs\n" if @lines % 2;
 
+            $count++;
+            printf " " x 4, "Block [%s]\n", $count;
             my ( $seq_of, $seq_names ) = ( {}, [] );
 
             # store simplified names
@@ -162,6 +164,7 @@ my $worker_block = sub {
                 $seq_of->{$idx} = $seq;
             }
 
+            printf " " x 8, "Block length [%s]\n", length $seq_of->{ $names->[0] };
             if ( $aln_prog ne 'none' ) {
                 if ($quick_mode) {
                     realign_quick(

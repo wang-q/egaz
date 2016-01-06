@@ -283,31 +283,39 @@ if ( $t_parted or $q_parted ) {
         %q_length = %{ read_sizes( path( $dir_query, 'chr.sizes' )->stringify ) };
     }
 
-    for my $file (@lav_files) {
-        $file =~ /\[(.+?)\]vs\[(.+?)\]/;
-        my $t_name = $1;
-        my $q_name = $2;
+    my $mce = MCE->new( chunk_size => 1, max_workers => $parallel, );
+    $mce->foreach(
+        [ sort @lav_files ],
+        sub {
+            my ( $self, $chunk_ref, $chunk_id ) = @_;
 
-        if ( !defined $t_name or !defined $q_name ) {
-            die ".lav naming error.\n";
+            my $file = $chunk_ref->[0];
+
+            $file =~ /\[(.+?)\]vs\[(.+?)\]/;
+            my $t_name = $1;
+            my $q_name = $2;
+
+            if ( !defined $t_name or !defined $q_name ) {
+                die ".lav naming error.\n";
+            }
+
+            my $outfile = $file;
+            $outfile =~ s/\.lav$/\.norm\.lav/;
+
+            my $t_len = $t_parted ? $t_length{$t_name} : 0;
+            my $q_len = $q_parted ? $q_length{$q_name} : 0;
+
+            print "Run normalize lav...\n";
+            my $cmd
+                = "perl $FindBin::RealBin/normalize_lav.pl"
+                . " -0 $t_len -1 $q_len"
+                . " -i $file -o $outfile";
+
+            exec_cmd($cmd);
+            path($file)->remove;
+            print ".lav file normalized.\n\n";
         }
-
-        my $outfile = $file;
-        $outfile =~ s/\.lav$/\.norm\.lav/;
-
-        my $t_len = $t_parted ? $t_length{$t_name} : 0;
-        my $q_len = $q_parted ? $q_length{$q_name} : 0;
-
-        print "Run normalize lav...\n";
-        my $cmd
-            = "perl $FindBin::RealBin/normalize_lav.pl"
-            . " -0 $t_len -1 $q_len"
-            . " -i $file -o $outfile";
-
-        exec_cmd($cmd);
-        path($file)->remove;
-        print ".lav file normalized.\n\n";
-    }
+    );
 }
 
 #----------------------------------------------------------#

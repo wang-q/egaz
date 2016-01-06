@@ -55,8 +55,8 @@ lpcna.pl - lav-psl-chain-net-axt pipeline
 
 GetOptions(
     'help|?'          => sub { HelpMessage(0) },
-    'dir_target|dt=s' => \my $dir_target,
-    'dir_query|dq=s'  => \my $dir_query,
+    'dir_target|dt=s' => \( my $dir_target ),
+    'dir_query|dq=s'  => \( my $dir_query ),
     'dir_lav|dl=s' => \( my $dir_lav   = '.' ),
     'parallel|p=i' => \( my $parallel  = 1 ),
     'linearGap=i'  => \( my $linearGap = "loose" ),
@@ -73,7 +73,7 @@ my @executables = qw{
 
 for (@executables) {
     if ( !can_run($_) ) {
-        die "Can't find $_\n";
+        die "Can't execute $_\n";
     }
 }
 

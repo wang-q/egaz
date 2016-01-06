@@ -2,14 +2,14 @@
 
 ## Detailed steps
 
-### prepare seqs
+### Prepare sequences
 
 ```bash
 mkdir -p ~/Scripts/egas/data
 cp -R ~/data/alignment/example/scer/Genomes/S288c ~/Scripts/egas/data/
 ```
 
-## self alignment
+### self alignment
 
 ```bash
 cd ~/Scripts/egas/data
@@ -56,8 +56,8 @@ find ../S288c -type f -name "*.fa" \
     > genome.fa
 faops size genome.fa > chr.sizes
 
-# Correct genomic positions
-fasops axt2fas ../S288cvsselfalign/axtNet/*.axt.gz -l 1000 -o stdout > axt.fas
+# Get exact copies in the genome
+fasops axt2fas ../S288cvsselfalign/axtNet/*.axt.gz -l 1000 -s chr.sizes -o stdout > axt.fas
 fasops separate axt.fas --nodash -s .sep.fasta
 
 perl ~/Scripts/egas/sparsemem_exact.pl -f target.sep.fasta -g genome.fa \

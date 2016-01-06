@@ -102,7 +102,7 @@ for ( $dir_lav, $dir_net, $dir_axtnet ) {
     exec_cmd($cmd) if !-e "$dir_query/chr.sizes";
 
     # use combined .2bit file instead of dir of nibs
-
+    #
     # faToTwoBit - Convert DNA from fasta to 2bit format
     # usage:
     #    faToTwoBit in.fa [in2.fa in3.fa ...] out.2bit
@@ -313,7 +313,7 @@ for ( $dir_lav, $dir_net, $dir_axtnet ) {
 
             my $file   = $chunk_ref->[0];
             my $output = path($file)->basename;
-            $output .= ".axt";
+            $output .= ".axt.gz";
 
             # netToAxt - Convert net (and chain) to axt.
             # usage:
@@ -333,10 +333,11 @@ for ( $dir_lav, $dir_net, $dir_axtnet ) {
                 . " $dir_target/chr.2bit"
                 . " $dir_query/chr.2bit"
                 . " stdout"
-                . " | axtSort stdin"
+                . " | axtSort stdin stdout"
+                . " | gzip -c >"
                 . " $dir_axtnet/$output";
             exec_cmd($cmd);
-            print ".axt file generated.\n\n";
+            print ".axt.gz file generated.\n\n";
         }
     );
 
@@ -353,32 +354,24 @@ for ( $dir_lav, $dir_net, $dir_axtnet ) {
     $cmd = "tar -czvf lav.tar.gz *.lav";    # bsdtar (mac) doesn't support  --remove-files
     if ( !-e "$dir_lav/lav.tar.gz" ) {
         exec_cmd($cmd);
-        remove("*.lav");
+        for ( path($dir_lav)->children(qr/\.lav$/) ) {
+            $_->remove;
+        }
     }
 
-    remove( \1, "$dir_lav/net" );
-    remove("[*.psl");
-    remove("[*.chain");
-    remove("*.tmp");
+    path( $dir_lav, "net" )->remove_tree;
+    for ( path($dir_lav)->children(qr/^\[.+\.psl$/) ) {
+        $_->remove;
+    }
+    for ( path($dir_lav)->children(qr/^\[.+\.chain$/) ) {
+        $_->remove;
+    }
+    for ( path($dir_lav)->children(qr/\.tmp$/) ) {
+        $_->remove;
+    }
 
     $cmd = "gzip *.chain";
     exec_cmd($cmd);
-
-    my @files = File::Find::Rule->file->name('*.axt')->in($dir_lav);
-    printf "\n----%4s .axt files to be gzipped ----\n", scalar @files;
-
-    my $mce = MCE->new( chunk_size => 1, max_workers => $parallel, );
-    $mce->foreach(
-        [ sort @files ],
-        sub {
-            my ( $self, $chunk_ref, $chunk_id ) = @_;
-
-            my $file = $chunk_ref->[0];
-
-            my $cmd = "gzip $file";
-            exec_cmd($cmd);
-        }
-    );
 }
 
 print "\n";

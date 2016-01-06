@@ -13,6 +13,7 @@ use File::Find::Rule;
 use File::Remove qw(remove);
 use Path::Tiny;
 use Time::Duration;
+use IPC::Cmd qw(can_run);
 
 use lib "$FindBin::RealBin/lib";
 use MyUtil qw(exec_cmd);
@@ -42,13 +43,13 @@ lpcna.pl - lav-psl-chain-net-axt pipeline
         --dir_lav       -dl STR     where .lav and .axt files stores
 
       Chaining options
-        --linearGap     -l  STR     axtChain linearGap, loose or medium, default is [loose]
+        --linearGap         STR     axtChain linearGap, loose or medium, default is [loose]
                                     Human18vsChimp2 use loose and 1000
                                     Human19vsChimp3 use medium and 5000
                                     loose is chicken/human linear gap costs.
                                     medium is mouse/human linear gap costs.
                                     Or specify a piecewise linearGap tab delimited file.
-        --minScore      -m  INT     Minimum score for axtChain
+        --minScore          INT     Minimum score for axtChain
 
 =cut
 
@@ -56,15 +57,26 @@ GetOptions(
     'help|?'          => sub { HelpMessage(0) },
     'dir_target|dt=s' => \my $dir_target,
     'dir_query|dq=s'  => \my $dir_query,
-    'dir_lav|dl=s'  => \( my $dir_lav   = '.' ),
-    'parallel|p=i'  => \( my $parallel  = 1 ),
-    'linearGap|l=i' => \( my $linearGap = "loose" ),
-    'minScore|m=i'  => \( my $minScore  = "1000" ),
+    'dir_lav|dl=s' => \( my $dir_lav   = '.' ),
+    'parallel|p=i' => \( my $parallel  = 1 ),
+    'linearGap=i'  => \( my $linearGap = "loose" ),
+    'minScore=i'   => \( my $minScore  = "1000" ),
 ) or HelpMessage(1);
 
 #----------------------------------------------------------#
 # Init
 #----------------------------------------------------------#
+my @executables = qw{
+    faops faToTwoBit lavToPsl axtChain chainAntiRepeat chainMergeSort chainPreNet
+    chainNet netSyntenic netChainSubset chainStitchId netSplit netToAxt axtSort
+};
+
+for (@executables) {
+    if ( !can_run($_) ) {
+        die "Can't find $_\n";
+    }
+}
+
 my $start_time = time;
 print "\n", "=" x 30, "\n";
 print "Processing...\n";
@@ -82,9 +94,7 @@ for ( $dir_lav, $dir_net, $dir_axtnet ) {
 #----------------------------------------------------------#
 {
 
-    # faSize - print total base count in fa files.
-    # usage:
-    #   faSize file(s).fa
+    # faops size
     my $cmd = "faops size" . " $dir_target/*.fa" . " > $dir_target/chr.sizes";
     exec_cmd($cmd) if !-e "$dir_target/chr.sizes";
 
@@ -184,7 +194,7 @@ for ( $dir_lav, $dir_net, $dir_axtnet ) {
     print "\n";
 
     # This step would open all .chain files and reach system's maxfile limit.
-    # So merge 50 files a time.
+    # So merge 100 files a time.
     #
     # chainMergeSort - Combine sorted files into larger sorted file
     # usage:

@@ -10,6 +10,9 @@ use YAML qw(Dump Load DumpFile LoadFile);
 use File::Find::Rule;
 use Path::Tiny;
 
+use lib "$FindBin::RealBin/lib";
+use MyUtil qw(read_fasta);
+
 #----------------------------------------------------------#
 # GetOpt section
 #----------------------------------------------------------#
@@ -27,23 +30,13 @@ part_seq.pl - Partitions a set of sequences by size
     perl part_seq.pl -i d:\data\alignment\mouse17\C57BL_6N_Mouse_Genome.fa\ -o d:\data\alignment\mouse17\C57BL_6N_parted -chunk 10010000 -overlap 10000
     perl part_seq.pl -i d:\data\alignment\mouse17\A_J_Mouse_Genome.fa\ -o d:\data\alignment\mouse17\A_J_parted -chunk 10000000 -overlap 0
 
-=head1 DESCRIPTION
-
-Blastz will take the first sequence in target fasta file and all sequences in query fasta file.
-
-So if there are mutiple query files, the program uses the largest one. And all target files in
-dir_target will be processed.
-
-So, if there are combined fasta files and multi fasta files coexisting in the target directory, just
-delete the axt file matched with the combined fasta filename.
-
 =cut
 
 GetOptions(
-    'help|?'      => sub { HelpMessage(0) },
+    'help|?'     => sub { HelpMessage(0) },
     'input|i=s'  => \my $in_dir,
     'output|o=s' => \my $out_dir,
-    'chunk_size=i'  => \( my $chunk_size  = 10_010_000 ),
+    'chunk=i'  => \( my $chunk_size  = 10_010_000 ),
     'overlap=i'     => \( my $overlap     = 10_000 ),
     'wrap_length=i' => \( my $wrap_length = 60 ),
 ) or HelpMessage(1);
@@ -56,14 +49,11 @@ my @files = File::Find::Rule->file->name('*.fa')->in($in_dir);
 die "You should provide a dir or file.\n" unless @files;
 
 # make output dir
-unless ( -e $out_dir ) {
-    mkdir $out_dir, 0777
-        or die "Cannot create \"$out_dir\" directory: $!";
-}
+path($out_dir)->mkpath;
 
 my %length_of;
 for my $file (@files) {
-    print "Read out file: $file\n";
+    print "For file: $file\n";
     my ( $seq_of, $seq_names ) = read_fasta($file);
     for my $name ( @{$seq_names} ) {
         print "Fasta header: $name\n";
@@ -87,23 +77,25 @@ for my $file (@files) {
             my $intervalsRef = overlappingIntervals( 0, $size, $chunk_size, $overlap );
             for my $i ( @{$intervalsRef} ) {
                 my ( $start, $end ) = @{$i};
-                write_empty_file( $out_dir, $new_name, $start, $end );
+                path( $out_dir, "$new_name.fa[$start,$end]" )->touch;
             }
 
         }
         else {
-            write_empty_file( $out_dir, $new_name, 1, $size );
+            path( $out_dir, "$new_name.fa[1,$size]" )->touch;
+
         }
         $length_of{$new_name} = $size;
     }
 }
 
 {
-    my $file = file( $out_dir, "chr.sizes" );
+    my $file = path( $out_dir, "chr.sizes" );
     my $fh = $file->openw;
     for my $key ( sort keys %length_of ) {
         print {$fh} "$key\t$length_of{$key}\n";
     }
+    close $fh;
 }
 
 sub overlappingIntervals {
@@ -128,7 +120,7 @@ sub write_seq {
 
     my $seq_length = length $seq;
 
-    my $file = file( $dir, "$name.fa" );
+    my $file = path( $dir, "$name.fa" );
     my $fh = $file->openw;
     print {$fh} ">$name\n";
 
@@ -141,18 +133,6 @@ sub write_seq {
         print {$fh} $seq, "\n";
     }
 
-}
-
-sub write_empty_file {
-    my $dir   = shift;
-    my $name  = shift;
-    my $start = shift;
-    my $end   = shift;
-
-    my $file = file( $dir, "$name.fa[$start,$end]" );
-    my $fh = $file->openw;
-
-    return;
 }
 
 exit;

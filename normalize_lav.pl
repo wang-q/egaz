@@ -7,6 +7,9 @@ use Getopt::Long qw(HelpMessage);
 use FindBin;
 use YAML qw(Dump Load DumpFile LoadFile);
 
+use Path::Tiny;
+use List::Util qw(max);
+
 #----------------------------------------------------------#
 # GetOpt section
 #----------------------------------------------------------#
@@ -24,7 +27,7 @@ GetOptions(
 #----------------------------------------------------------#
 open my $fh, '>', $outfile;
 
-my $lav_content = read_file($lavfile);
+my $lav_content = path($lavfile)->slurp;
 my @lavs = split /\#\:lav\n/, $lav_content;
 shift @lavs;    # .lav file start with #:lav
 my $d_stanza = shift @lavs;
@@ -32,7 +35,7 @@ $d_stanza = "d {\n  normalize-lav $len0 $len1\n}\n" . $d_stanza;
 print {$fh} "#:lav\n";
 print {$fh} $d_stanza;
 
-foreach my $lav (@lavs) {
+for my $lav (@lavs) {
     print {$fh} "#:lav\n";
 
     my $t_from = 0;

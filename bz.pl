@@ -200,6 +200,7 @@ printf "\n----%4s .fa files for query----\n",  scalar @query_files;
         print "Run lastz...\n";
 
         # naming the .lav file
+        # remove .fa or .fa[1,10000]
         my $t_base = path($target)->basename;
         $t_base =~ s/\..+?$//;
         my $q_base = path($query)->basename;
@@ -304,7 +305,7 @@ if ( $t_parted or $q_parted ) {
             . " -i $file -o $outfile";
 
         exec_cmd($cmd);
-        unlink $file;
+        path($file)->remove;
         print ".lav file normalized.\n\n";
     }
 }

@@ -23,7 +23,7 @@ use MyUtil qw(read_sizes exec_cmd);
 
 =head1 NAME
 
-bz.pl - execute lastz and lav2axt against two directories
+bz.pl - execute lastz and lav2axt against two paths
 
 =head1 SYNOPSIS
 
@@ -73,7 +73,7 @@ bz.pl - execute lastz and lav2axt against two directories
       Speedup parameters:
         -Z                  INT     increment between successive words
 
-    perl part_seq.pl -in t/S288C -out t/S288C_parted -chunk 500000
+    perl part_seq.pl -i t/S288C -o t/S288C_parted -chunk 500000
     perl bz.pl -dt t/S288C_parted -dq t/RM11/RM11.fa -s set01 -dl t/S288CvsRM11_df_tp -tp -p 1
 
 =head1 DESCRIPTION
@@ -316,20 +316,6 @@ if ( !$noaxt ) {
     my @lav_files = File::Find::Rule->file->name('*.lav')->in($dir_lav);
     printf "\n----%4s .lav files to be converted ----\n", scalar @lav_files;
 
-    my $worker = sub {
-        my $job = shift;
-        my $opt = shift;
-
-        my $file = $job;
-
-        print "Run lav2axt...\n";
-        my $cmd = "perl $FindBin::RealBin/lav2axt.pl -l $file ";
-        exec_cmd($cmd);
-        print ".axt file generated.\n\n";
-
-        return;
-    };
-
     my $start_time = time;
     print "\n", "=" x 30, "\n";
     print "Processing...\n";
@@ -343,7 +329,7 @@ if ( !$noaxt ) {
             my $file = $chunk_ref->[0];
 
             print "Run lav2axt...\n";
-            my $cmd = "perl $FindBin::RealBin/lav2axt.pl -l $file ";
+            my $cmd = "perl $FindBin::RealBin/lav2axt.pl -i $file ";
             exec_cmd($cmd);
             print ".axt file generated.\n\n";
         }

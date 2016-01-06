@@ -13,10 +13,10 @@ use YAML qw(Dump Load DumpFile LoadFile);
 
 GetOptions(
     'help|?' => sub { HelpMessage(0) },
-    'i|input=s'  => \my $lavfile,
-    'o|output=s' => \my $outfile,
-    '0|len0=i'   => \(my $len0 = 0),
-    '1|len1=i'   => \(my $len1 = 0),
+    'input|i=s'  => \my $lavfile,
+    'output|o=s' => \my $outfile,
+    'len0|0=i'   => \(my $len0 = 0),
+    'len1|1=i'   => \(my $len1 = 0),
 ) or HelpMessage(1);
 
 #----------------------------------------------------------#

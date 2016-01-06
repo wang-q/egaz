@@ -22,18 +22,18 @@ lav2axt.pl - convert .lav files to .axt files
 
 =head1 SYNOPSIS
 
-    perl lav2axt.pl -l <lavfile(s)> -o <output> [options]
+    perl lav2axt.pl -i <lavfile(s)> -o <output> [options]
       Options:
         --help          -?          brief help message
-        --lavfile       -l  STR
-        --output        -o  STR
+        --input         -i  STR     input lav file
+        --output        -o  STR     output axt file
 
 =cut
 
 GetOptions(
-    'help|?'      => sub { HelpMessage(0) },
-    'lavfile|l=s' => \my $lavfile,
-    'output|o=s'  => \my $output,
+    'help|?'     => sub { HelpMessage(0) },
+    'input|i=s'  => \my $lavfile,
+    'output|o=s' => \my $output,
 ) or HelpMessage(1);
 
 $lavfile =~ s/\\/\//g;

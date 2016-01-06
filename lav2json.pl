@@ -16,24 +16,24 @@ use JSON::XS;
 
 =head1 NAME
 
-    lav2json.pl - convert .lav files to .json files
+lav2json.pl - convert .lav files to .json files
 
 =head1 SYNOPSIS
 
     perl lav2json.pl -l <lavfile> -o <output> [options]
       Options:
         --help          -?          brief help message
-        --lavfile       -l  STR
+        --input         -i  STR
         --output        -o  STR
         --prety         -p
 
 =cut
 
 GetOptions(
-    'help|?'      => sub { HelpMessage(0) },
-    'lavfile|l=s' => \my $lavfile,
-    'output|o=s'  => \my $output,
-    'pretty|p'    => \my $pretty,
+    'help|?'     => sub { HelpMessage(0) },
+    'input|i=s'  => \my $lavfile,
+    'output|o=s' => \my $output,
+    'pretty|p'   => \my $pretty,
 ) or HelpMessage(1);
 
 $lavfile =~ s/\\/\//g;
@@ -91,7 +91,7 @@ foreach my $lav (@lavs) {
     {
         $lav =~ /s {\s+(.+?)\s+}/s;
         my $s_stanza = $1;
-        my @s_lines = $s_stanza =~ /(.+ \d+ \d+ \d+ \d+)/g;
+        my @s_lines  = $s_stanza =~ /(.+ \d+ \d+ \d+ \d+)/g;
         unless ( ( scalar @s_lines ) == 2 ) { die "s-stanza error.\n"; }
 
         $s_lines[0] =~ /\s*\"?(.+?)\-?\"? (\d+) (\d+) (\d+) (\d+)/;
@@ -114,7 +114,7 @@ foreach my $lav (@lavs) {
     {
         $lav =~ /h {\s+(.+?)\s+}/s;
         my $h_stanza = $1;
-        my @h_lines = $h_stanza =~ /(.+)/g;
+        my @h_lines  = $h_stanza =~ /(.+)/g;
         unless ( ( scalar @h_lines ) == 2 ) { die "h-stanza error.\n"; }
 
         $h_lines[0] =~ /\s*\"\>(.+)\"/;

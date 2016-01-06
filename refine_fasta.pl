@@ -7,14 +7,8 @@ use Getopt::Long;
 use Pod::Usage;
 use YAML qw(Dump Load DumpFile LoadFile);
 
-use File::Spec;
+use Path::Tiny;
 use File::Find::Rule;
-use File::Basename;
-use File::Remove qw(remove);
-use List::Util qw(first max maxstr min minstr reduce shuffle sum);
-use List::MoreUtils qw(any all);
-use Math::Combinatorics;
-
 use MCE;
 
 use AlignDB::IntSpan;
@@ -26,60 +20,61 @@ use FindBin;
 #----------------------------------------------------------#
 # GetOpt section
 #----------------------------------------------------------#
-my $in_dir = '.';    # Specify location here
-my $out_dir;         # Specify output dir here
-my $aln_prog = 'clustalw';    # Default alignment program
 
-my $quick_mode   = undef;     # quick mode
-my $indel_expand = 50;        # in quick mode, expand indel regoin
-my $indel_join   = 50;        # in quick mode, join adjacent indel regions
+=head1 NAME
 
-my $outgroup;                 # has outgroup at the end
-my $block;                    # input is galaxy style blocked fasta
+refine_fasta.pl - realign fasta file
 
-# run in parallel mode
-my $parallel = 1;
+=head1 SYNOPSIS
 
-my $man  = 0;
-my $help = 0;
+    perl refine_fasta.pl [options]
+      Options:
+        --help          -?          brief help message
+        --input         -i  STR     fasta files' location
+        --output        -o  STR     output location
+        --msa                       alignment program ([none] means don't do realigning)
+        --block                     input is blocked fasta
+        --quick                     use quick mode
+        --outgroup                  has outgroup at the end
+        --expand                    in quick mode, expand indel region
+        --join                      in quick mode, join adjacent indel regions
+        --parallel                  run in parallel mode
+
+    perl refine_fasta.pl -i G:/S288CvsRM11 --msa muscle --quick
+
+=cut
 
 GetOptions(
-    'help|?'      => \$help,
-    'man'         => \$man,
-    'i|in_dir=s'  => \$in_dir,
-    'o|out_dir=s' => \$out_dir,
-    'msa=s'       => \$aln_prog,
-    'quick'       => \$quick_mode,
-    'outgroup'    => \$outgroup,
-    'expand=i'    => \$indel_expand,
-    'join=i'      => \$indel_join,
-    'block'       => \$block,
-    'parallel=i'  => \$parallel,
-) or pod2usage(2);
-
-pod2usage(1) if $help;
-pod2usage( -exitstatus => 0, -verbose => 2 ) if $man;
+    'help|?' => sub { HelpMessage(0) },
+    'input|i=s' => \( my $in_dir = '.' ),
+    'output|o=s' => \( my $out_dir ),
+    'msa=s'      => \( my $aln_prog = 'clustalw' ),
+    'block'      => \my $block,
+    'quick'      => \my $quick_mode,
+    'outgroup'   => \my $outgroup,
+    'expand=i'   => \( my $indel_expand = 50 ),
+    'join=i'     => \( my $indel_join = 50 ),
+    'parallel=i' => \( my $parallel = 1 ),
+) or HelpMessage(1);
 
 #----------------------------------------------------------#
 # make output dir
 #----------------------------------------------------------#
 unless ($out_dir) {
-    $out_dir = File::Spec->rel2abs($in_dir) . "_$aln_prog";
+    $out_dir = path($in_dir)->absolute->stringify . "_$aln_prog";
     $out_dir = $out_dir . "_quick" if $quick_mode;
 }
 
-if ( -e $out_dir ) {
+if ( path($out_dir)->exists ) {
     warn "$out_dir exists, remove it.\n";
-    remove( \1, $out_dir );
+    path($out_dir)->remove_tree;
 }
-
-mkdir $out_dir, 0777;
+path($out_dir)->mkpath;
 
 #----------------------------------------------------------#
 # Search for all files
 #----------------------------------------------------------#
-my @files
-    = File::Find::Rule->file->name( '*.fa', '*.fas', '*.fasta' )->in($in_dir);
+my @files = File::Find::Rule->file->name( '*.fa', '*.fas', '*.fasta' )->in($in_dir);
 printf "\n----Total .fas Files: %4s----\n\n", scalar @files;
 
 #----------------------------------------------------------#
@@ -120,7 +115,7 @@ my $worker = sub {
         trim_complex_indel( $seq_of, $seq_names );
     }
 
-    my $outfile = basename($infile);
+    my $outfile = path($infile)->basename;
     $outfile = $out_dir . "/$outfile";
 
     open my $out_fh, '>', $outfile
@@ -191,7 +186,7 @@ my $worker_block = sub {
                 trim_complex_indel( $seq_of, $names );
             }
 
-            my $outfile = basename($infile);
+            my $outfile = path($infile)->basename;
             $outfile = $out_dir . "/$outfile";
 
             open my $out_fh, '>>', $outfile;
@@ -241,31 +236,3 @@ sub realign_all {
 }
 
 __END__
-
-=head1 NAME
-
-    refine_fasta.pl - realign fasta file
-
-=head1 SYNOPSIS
-    perl refine_fasta.pl --in_dir G:/S288CvsRM11 --msa muscle --quick
-
-    refine_fasta.pl [options]
-      Options:
-        --help              brief help message
-        --man               full documentation
-        --in_dir            fasta files' location
-        --out_dir           output location
-        --length            length threshold
-        --msa               alignment program (none means don't do realigning)
-        --quick             use quick mode
-        --no_trim           don't trim outgroup sequence (the first one)
-        --expand            in quick mode, expand indel region
-        --join              in quick mode, join adjacent indel regions
-        --parallel          run in parallel mode
-
-=head1 DESCRIPTION
-
-B<This program> will read the given input file(s) and do someting
-useful with the contents thereof.
-
-=cut

@@ -25,15 +25,14 @@ fas2vcf.pl - list variations in blocked fasta file
 
 =head1 SYNOPSIS
 
-    perl fas2vcf.pl --in <.fas> -s <chr.sizes> [options]
+    perl fas2vcf.pl -i <.fas> -s <chr.sizes> [options]
       Options:
-        --help              brief help message
-        --man               full documentation
-        -i, --in_file       blocked fasta file's location
-        -o, --out_file      output location
-        -s, --size_file     chr.size
+        --help          -?          brief help message
+        --input         -i  STR     input blocked fasta file
+        --output        -o  STR     output vcf file
+        --size          -s  STR     chr.size
 
-    perl fas2vcf.pl --in I.net.axt.fas -s chr.sizes
+    perl fas2vcf.pl -i I.net.axt.fas -s chr.sizes
 
 =cut
 
@@ -41,9 +40,9 @@ my $jvk = '~/share/jvarkit/biostar94573.jar';
 
 GetOptions(
     'help|?' => sub { HelpMessage(0) },
-    'i|in_file=s'   => \my $in_file,
-    'o|out_file=s'  => \my $out_file,
-    's|size_file=s' => \my $size_file,
+    'input|i=s'   => \my $in_file,
+    'output|o=s'  => \my $out_file,
+    'size|s=s' => \my $size_file,
 ) or HelpMessage(1);
 
 #----------------------------------------------------------#

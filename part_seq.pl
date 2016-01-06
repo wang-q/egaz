@@ -41,8 +41,8 @@ delete the axt file matched with the combined fasta filename.
 
 GetOptions(
     'help|?'      => sub { HelpMessage(0) },
-    'i|in_dir=s'  => \my $in_dir,
-    'o|out_dir=s' => \my $out_dir,
+    'input|i=s'  => \my $in_dir,
+    'output|o=s' => \my $out_dir,
     'chunk_size=i'  => \( my $chunk_size  = 10_010_000 ),
     'overlap=i'     => \( my $overlap     = 10_000 ),
     'wrap_length=i' => \( my $wrap_length = 60 ),

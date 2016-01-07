@@ -147,7 +147,7 @@ my $worker_block = sub {
             die "headers not equal to seqs\n" if @lines % 2;
 
             $count++;
-            printf " " x 4, "Block [%s]\n", $count;
+            printf "Block [%s] ", $count;
             my ( $seq_of, $seq_names ) = ( {}, [] );
 
             # store simplified names
@@ -164,7 +164,7 @@ my $worker_block = sub {
                 $seq_of->{$idx} = $seq;
             }
 
-            printf " " x 8, "Block length [%s]\n", length $seq_of->{ $names->[0] };
+            printf "length [%s]\n", length $seq_of->{0};
             if ( $aln_prog ne 'none' ) {
                 if ($quick_mode) {
                     realign_quick(

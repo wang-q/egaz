@@ -39,10 +39,10 @@ fas2vcf.pl - list variations in blocked fasta file
 my $jvk = '~/share/jvarkit/biostar94573.jar';
 
 GetOptions(
-    'help|?' => sub { HelpMessage(0) },
-    'input|i=s'   => \my $in_file,
-    'output|o=s'  => \my $out_file,
-    'size|s=s' => \my $size_file,
+    'help|?'     => sub { HelpMessage(0) },
+    'input|i=s'  => \my $in_file,
+    'output|o=s' => \my $out_file,
+    'size|s=s'   => \my $size_file,
 ) or HelpMessage(1);
 
 #----------------------------------------------------------#
@@ -58,12 +58,14 @@ my $temp_dir = Path::Tiny->tempdir( TEMPLATE => "fas_XXXXXXXX" );
 my $temp_list = Path::Tiny->tempfile( TEMPLATE => "fas_XXXXXXXX" );
 my $length_of = read_sizes($size_file);
 
-{    #split fas
+{
+    $stopwatch->block_message("Split fas");
     my $cmd = "fasops split $in_file --rm -o $temp_dir";
     exec_cmd($cmd);
 }
 
 {
+    $stopwatch->block_message("Fas2vcf");
     my @files = $temp_dir->children(qr/\.fas$/);
 
     for my $f (@files) {
@@ -94,7 +96,8 @@ my $length_of = read_sizes($size_file);
     }
 }
 
-{    # concat vcf
+{
+    $stopwatch->block_message("concat vaf");
     my $cmd = "vcf-concat -f $temp_list > $out_file";
     exec_cmd($cmd);
 }

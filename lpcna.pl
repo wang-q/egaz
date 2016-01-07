@@ -10,7 +10,6 @@ use YAML qw(Dump Load DumpFile LoadFile);
 use MCE;
 
 use File::Find::Rule;
-use File::Remove qw(remove);
 use Path::Tiny;
 use Time::Duration;
 use IPC::Cmd qw(can_run);
@@ -363,13 +362,13 @@ for ( $dir_lav, $dir_net, $dir_axtnet ) {
     for ( path($dir_lav)->children(qr/^\[.+\.psl$/) ) {
         $_->remove;
     }
-    for ( path($dir_lav)->children(qr/^\[.+\.chain$/) ) {
-        $_->remove;
-    }
     for ( path($dir_lav)->children(qr/\.tmp$/) ) {
         $_->remove;
     }
 
+    for ( path($dir_lav)->children(qr/^\[.+\.chain$/) ) {
+        $_->remove;
+    }
     $cmd = "gzip *.chain";
     exec_cmd($cmd);
 }

@@ -10,7 +10,6 @@ use YAML qw(Dump Load DumpFile LoadFile);
 use MCE;
 
 use File::Find::Rule;
-use File::Remove qw(remove);
 use Path::Tiny;
 use Time::Duration;
 
@@ -92,7 +91,7 @@ if ( !$syn ) {
 
         my $file = $chunk_ref->[0];
         my $output = path($file)->basename( ".axt", ".axt.gz" );
-        $output = path( $dir_mafnet, "$output.maf" )->stringify;
+        $output = path( $dir_mafnet, "$output.maf.gz" )->stringify;
 
         # axtToMaf - Convert from axt to maf format
         # usage:
@@ -116,6 +115,8 @@ if ( !$syn ) {
             . " $file"
             . " $dir_target/chr.sizes"
             . " $dir_query/chr.sizes"
+            . " stdout"
+            . " | gzip -c >"
             . " $output";
         exec_cmd($cmd);
         print ".maf file generated.\n\n";
@@ -178,7 +179,7 @@ else {
 
         my $file       = $chunk_ref->[0];
         my $base       = path($file)->basename(".net");
-        my $output     = path( $dir_mafsynnet, "$base.synNet.maf" )->stringify;
+        my $output     = path( $dir_mafsynnet, "$base.synNet.maf.gz" )->stringify;
         my $chain_file = path( $dir_chain, "$base.chain" )->stringify;
 
         print "Run netToAxt axtSort axtToMaf...\n";
@@ -196,6 +197,8 @@ else {
             . " stdin"
             . " $dir_target/chr.sizes"
             . " $dir_query/chr.sizes"
+            . " stdout"
+            . " | gzip -c >"
             . " $output";
         exec_cmd($cmd);
         print ".maf file generated.\n\n";
@@ -213,23 +216,9 @@ else {
 # clean section
 #----------------------------------------------------------#
 {
-    chdir $dir_lav;
-    remove( \1, $dir_synnet, $dir_chain );
+    path($dir_synnet)->remove_tree;
+    path($dir_chain)->remove_tree;
 
-    my @files = File::Find::Rule->file->name('*.maf')->in("$dir_lav");
-    printf "\n----%4s .maf files to be converted ----\n", scalar @files;
-
-    my $mce = MCE->new( chunk_size => 1, max_workers => $parallel, );
-    $mce->foreach(
-        [ sort @files ],
-        sub {
-            my ( $self, $chunk_ref, $chunk_id ) = @_;
-
-            my $file = $chunk_ref->[0];
-            my $cmd  = "gzip $file";
-            exec_cmd($cmd);
-        }
-    );
 }
 
 print "\n";

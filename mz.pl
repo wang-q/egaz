@@ -20,7 +20,6 @@ use String::Compare;
 use Number::Format qw(format_bytes);
 
 use File::Find::Rule;
-use File::Remove qw(remove);
 use File::Copy::Recursive qw(fcopy);
 
 use lib "$FindBin::RealBin/lib";
@@ -133,7 +132,7 @@ my @species;         # species list gathered from maf files; and then shift targ
 
     print "Assign files to species\n";
     for my $file (@files) {
-        my @list = @{$list_of{$file}};
+        my @list = @{ $list_of{$file} };
         $seen{$_}++ for @list;
 
         my $chr_name = path($file)->basename( ".net$suffix", ".synNet$suffix", $suffix );
@@ -350,18 +349,19 @@ my $worker = sub {
 
     if ( !$noclean ) {
         print "Clean temp files.\n";
-        remove("$out_dir/$chr_name.out1");
-        remove("$out_dir/$chr_name.out2");
-        remove("$out_dir/$chr_name.step*");
+        path( $out_dir, "$chr_name.out1" )->remove;
+        path( $out_dir, "$chr_name.out2" )->remove;
+        for ( path($out_dir)->children(qr/^$chr_name\.step/) ) {
+            $_->remove;
+        }
     }
 
     my $cmd = "gzip " . "$out_dir/$chr_name.maf";
     exec_cmd($cmd);
 
     print $str;
-    open my $out_fh, ">", "$out_dir/$chr_name.temp.csv";
-    print {$out_fh} $str;
-    close $out_fh;
+    path($out_dir, "$chr_name.temp.csv")->remove;
+    path($out_dir, "$chr_name.temp.csv")->spew($str);
 
     return;
 };

@@ -38,7 +38,8 @@ GetOptions(
     'dir_query|dq=s'  => \my $dir_query,
     'dir_working|dw=s' => \( my $dir_working = '.' ),
     'parallel|p=i'     => \( my $parallel    = 1 ),
-    'r|run=s'          => \( my $task        = 1 ),
+    'run|r=s'          => \( my $task        = 1 ),
+    'clean'            => \( my $clean ),
 ) or HelpMessage(1);
 
 my @tasks;
@@ -65,6 +66,9 @@ my $ldir;
     my $tq = "${t_base}vs${q_base}";
     $ldir = path( $dir_working, $tq );
     $ldir = $ldir->absolute->stringify;
+    if ( $clean and path($ldir)->exists ) {
+        path($ldir)->remove_tree;
+    }
 }
 
 #----------------------------------------------------------#

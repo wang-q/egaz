@@ -132,7 +132,7 @@ MCE::Flow::init {
     max_workers => $parallel,
 };
 my $cmd
-    = sprintf "blastn -task megablast -evalue 0.01 -word_size 40"
+    = sprintf "blastn -task megablast -evalue 0.01 -word_size 80"
     . " -max_target_seqs 10 -dust no -soft_masking false"
     . " -outfmt '7 qseqid sseqid qstart qend sstart send qlen slen nident'"
     . " -num_threads %d -db %s -query %s", $parallel, $file, $file;

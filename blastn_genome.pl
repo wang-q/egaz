@@ -150,7 +150,7 @@ $stopwatch->block_message( "Finish blasting", 1 );
     #----------------------------#
     # remove locations fully contained by others
     #----------------------------#
-    print $stopwatch->block_message("Convert nodes to sets");
+    $stopwatch->block_message("Convert nodes to sets");
     my $nodes_of_chr = {};
     my %set_of;
     for my $node ( keys %locations ) {
@@ -162,57 +162,44 @@ $stopwatch->block_message( "Finish blasting", 1 );
         $set_of{$node} = $set;
     }
 
-    print $stopwatch->block_message("Overlaps between sets");
-    my $worker = sub {
-        my ( $self, $chunk_ref, $chunk_id ) = @_;
+    $stopwatch->block_message("Sort by start points on chromosomes");
+    for my $chr ( sort keys %{$nodes_of_chr} ) {
+        my @temps = map { $_->[0] }
+            sort { $a->[1] <=> $b->[1] }
+            map { /[\w.]+\(.\)\:(\d+)/; [ $_, $1 ] } @{ $nodes_of_chr->{$chr} };
+        $nodes_of_chr->{$chr} = \@temps;
+    }
 
-        my $chr = $chunk_ref->[0];
-        my $wid = MCE->wid;
-        print "* Process chromosome [$chr] by worker #$wid\n";
-
+    $stopwatch->block_message("Overlaps between sets");
+    my %to_remove;
+    for my $chr ( sort keys %{$nodes_of_chr} ) {
         my @nodes = @{ $nodes_of_chr->{$chr} };
-        my %seen;
-        for my $i ( 0 .. $#nodes ) {
+
+        for my $i ( 0 .. $#nodes - 1 ) {
             my $node_i = $nodes[$i];
             my $set_i  = $set_of{$node_i};
-            for my $j ( $i + 1 .. $#nodes ) {
-                my $node_j = $nodes[$j];
-                my $set_j  = $set_of{$node_j};
 
-                if ( $set_i->larger_than($set_j) ) {
-                    $seen{$node_j}++;
-                }
-                elsif ( $set_j->larger_than($set_i) ) {
-                    $seen{$node_i}++;
-                }
+            my $j      = $i + 1;
+            my $node_j = $nodes[$j];
+            my $set_j  = $set_of{$node_j};
+
+            if ( $set_i->larger_than($set_j) ) {
+                $to_remove{$node_j}++;
+            }
+            elsif ( $set_j->larger_than($set_i) ) {
+                $to_remove{$node_i}++;
             }
         }
+    }
 
-        printf "* Gather %s nested nodes\n", scalar keys %seen;
-        MCE->gather(%seen);
-    };
-    MCE::Flow::init {
-        chunk_size  => 1,
-        max_workers => $parallel,
-    };
-    my %to_remove = mce_flow $worker, ( sort keys %{$nodes_of_chr} );
-    MCE::Flow::finish;
-
-    #----------------------------#
-    # sort heads
-    #----------------------------#
-    $stopwatch->block_message("Sort locations");
-    my @sorted = map { exists $to_remove{$_} ? () : $_ } keys %locations;
-
-    # start point on chromosomes
-    @sorted = map { $_->[0] }
-        sort { $a->[1] <=> $b->[1] }
-        map { /[\w.]+\(.\)\:(\d+)/; [ $_, $1 ] } @sorted;
-
-    # chromosome name
-    @sorted = map { $_->[0] }
-        sort { $a->[1] cmp $b->[1] }
-        map { /([\w.]+)\(.\)\:/; [ $_, $1 ] } @sorted;
+    my @sorted;
+    for my $chr ( sort keys %{$nodes_of_chr} ) {
+        for my $node ( @{ $nodes_of_chr->{$chr} } ) {
+            if (! exists $to_remove{$node} ) {
+                push @sorted , $node;
+            }
+        }
+    }
 
     #----------------------------#
     # write fasta

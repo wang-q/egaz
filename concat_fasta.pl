@@ -12,6 +12,7 @@ use MCE;
 use File::Find::Rule;
 use IO::Zlib;
 use Path::Tiny;
+use List::Util qw(shuffle);
 use List::MoreUtils qw(uniq);
 
 use AlignDB::Stopwatch;
@@ -32,7 +33,7 @@ concat_fasta.pl - concatenate blocked fasta files
         --in_dir        -i  STR     fasta files' location
         --out_file      -o  STR     output file
         --sampling      -s          random sampling
-        --total_length  -l  INT     when exceed this, quit. Default is [1_000_000]
+        --total_length  -l  INT     stop when exceed this length.
         --relaxed       -rp         output relaxed phylip instead of fasta
         --wrap          -w  INT     long line wrap length
         --gzip                      input files are gzipped. .fas.gz
@@ -46,10 +47,10 @@ GetOptions(
     'in_dir|i=s'   => \my $in_dir,
     'out_file|o=s' => \my $out_file,
     'sampling|s'   => \my $sampling,
-    'total|l=i' => \( my $total_length = 1_000_000 ),
-    'relaxed|rp' => \my $relaxed_phylip,
-    'wrap|w=i'   => \( my $wrap = 0 ),
-    'gzip'       => \my $gzip,
+    'total|l=i'    => \my $total_length,
+    'relaxed|rp'   => \my $relaxed_phylip,
+    'wrap|w=i' => \( my $wrap = 0 ),
+    'gzip' => \my $gzip,
 ) or HelpMessage(1);
 
 #----------------------------------------------------------#
@@ -89,18 +90,18 @@ for my $file (@files) {
 }
 
 my $all_seq_of = {};
+my @indexes    = 0 .. $#{$seq_of_ary};
 if ($sampling) {
-    while (1) {
-        my $rand_idx = int rand $#{$seq_of_ary};
-        $all_seq_of->{$_} .= $seq_of_ary->[$rand_idx]{$_} for @{$all_names};
+    @indexes = shuffle(@indexes);
+}
+
+for my $idx (@indexes) {
+    $all_seq_of->{$_} .= $seq_of_ary->[$idx]{$_} for @{$all_names};
+    if ($total_length) {
         last if length $all_seq_of->{ $all_names->[0] } > $total_length;
     }
 }
-else {
-    for my $idx ( 0 .. $#{$seq_of_ary} ) {
-        $all_seq_of->{$_} .= $seq_of_ary->[$idx]{$_} for @{$all_names};
-    }
-}
+
 my $seq_length = length $all_seq_of->{ $all_names->[0] };
 
 open my $out_fh, '>', $out_file;

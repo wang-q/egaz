@@ -192,6 +192,7 @@ $stopwatch->block_message( "Finish blasting", 1 );
         }
     }
 
+    printf " " x 4 . "Remove [%d] nested nodes\n", scalar keys %to_remove;
     my @sorted;
     for my $chr ( sort keys %{$nodes_of_chr} ) {
         for my $node ( @{ $nodes_of_chr->{$chr} } ) {

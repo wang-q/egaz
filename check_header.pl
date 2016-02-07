@@ -9,9 +9,8 @@ use YAML qw(Dump Load DumpFile LoadFile);
 
 use Path::Tiny;
 use IO::Zlib;
-
+use App::Fasops::Common qw(decode_header revcom);
 use AlignDB::Stopwatch;
-use AlignDB::Util qw(decode_header revcom);
 
 #----------------------------------------------------------#
 # GetOpt section
@@ -53,7 +52,7 @@ GetOptions(
 # Start
 #----------------------------------------------------------#
 my $stopwatch = AlignDB::Stopwatch->new;
-$stopwatch->start_message( "Check headers for [$in_file]");
+$stopwatch->start_message("Check headers for [$in_file]");
 
 my $in_fh = IO::Zlib->new( $in_file, "rb" );
 
@@ -103,9 +102,9 @@ $stopwatch->end_message( "All sequences scanned.", "duration" );
 exit;
 
 sub check_seq {
-    my $header = shift;
-    my $seq    = shift;
-    my $log_file  = shift;
+    my $header   = shift;
+    my $seq      = shift;
+    my $log_file = shift;
 
     my $info = decode_header($header);
     if ( $name and $name ne $info->{name} ) {
@@ -128,11 +127,11 @@ sub check_seq {
     if ( $seq ne $seq_genome ) {
         printf "FAILED\t%s\n", $header;
         if ($log_file) {
-            my $str =  ">$header\n";
+            my $str = ">$header\n";
             $str .= "$seq\n";
-            $str .=  ">$location\n";
-            $str .=  "$seq_genome\n";
-            $str .=  "\n";
+            $str .= ">$location\n";
+            $str .= "$seq_genome\n";
+            $str .= "\n";
             path($log_file)->append($str);
         }
     }

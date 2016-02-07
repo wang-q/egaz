@@ -12,7 +12,6 @@ use MCE::Flow;
 
 use Bio::Phylo::IO qw(parse);
 use Set::Scalar;
-use List::Flatten;
 use List::MoreUtils qw(uniq zip);
 use Time::Duration;
 use Path::Tiny;
@@ -241,8 +240,8 @@ my @chr_names = sort $file_of->{$target_name}{chr_set}->members;    # all target
     print "\n";
 
     # sort @species by distances in tree
-    my $ladder     = ladder( $tree_file, $target_name );
-    my @order      = flat( @{$ladder} );
+    my $ladder = ladder( $tree_file, $target_name );
+    my @order = map { ref eq 'ARRAY' ? @$_ : $_ } @{$ladder};
     my %item_order = map { $order[$_] => $_ } 0 .. $#order;
 
     @species = map { $_->[0] }
@@ -360,8 +359,8 @@ my $worker = sub {
     exec_cmd($cmd);
 
     print $str;
-    path($out_dir, "$chr_name.temp.csv")->remove;
-    path($out_dir, "$chr_name.temp.csv")->spew($str);
+    path( $out_dir, "$chr_name.temp.csv" )->remove;
+    path( $out_dir, "$chr_name.temp.csv" )->spew($str);
 
     return;
 };

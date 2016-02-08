@@ -162,11 +162,21 @@ $stopwatch->block_message( "Finish blasting", 1 );
         $set_of{$node} = $set;
     }
 
-    $stopwatch->block_message("Sort by start points on chromosomes");
+    $stopwatch->block_message("Sort by positions at chromosomes");
+
+    # end positions
     for my $chr ( sort keys %{$nodes_of_chr} ) {
         my @temps = map { $_->[0] }
             sort { $a->[1] <=> $b->[1] }
-            map { /[\w.]+\(.\)\:(\d+)/; [ $_, $1 ] } @{ $nodes_of_chr->{$chr} };
+            map { /\:(?:\d+)\-(\d+)/; [ $_, $1 ] } @{ $nodes_of_chr->{$chr} };
+        $nodes_of_chr->{$chr} = \@temps;
+    }
+
+    # start positions
+    for my $chr ( sort keys %{$nodes_of_chr} ) {
+        my @temps = map { $_->[0] }
+            sort { $a->[1] <=> $b->[1] }
+            map { /\:(\d+)/; [ $_, $1 ] } @{ $nodes_of_chr->{$chr} };
         $nodes_of_chr->{$chr} = \@temps;
     }
 
@@ -175,19 +185,24 @@ $stopwatch->block_message( "Finish blasting", 1 );
     for my $chr ( sort keys %{$nodes_of_chr} ) {
         my @nodes = @{ $nodes_of_chr->{$chr} };
 
-        for my $i ( 0 .. $#nodes - 1 ) {
-            my $node_i = $nodes[$i];
-            my $set_i  = $set_of{$node_i};
+        my $vicinity = 5;
+        for my $idx ( 0 .. $#nodes - $vicinity ) {
 
-            my $j      = $i + 1;
-            my $node_j = $nodes[$j];
-            my $set_j  = $set_of{$node_j};
+            for my $i ( 0 .. $vicinity - 1 ) {
+                for my $j ( $i .. $vicinity - 1 ) {
+                    my $node_i = $nodes[ $idx + $i ];
+                    my $set_i  = $set_of{$node_i};
 
-            if ( $set_i->larger_than($set_j) ) {
-                $to_remove{$node_j}++;
-            }
-            elsif ( $set_j->larger_than($set_i) ) {
-                $to_remove{$node_i}++;
+                    my $node_j = $nodes[ $idx + $j ];
+                    my $set_j  = $set_of{$node_j};
+
+                    if ( $set_i->larger_than($set_j) ) {
+                        $to_remove{$node_j}++;
+                    }
+                    elsif ( $set_j->larger_than($set_i) ) {
+                        $to_remove{$node_i}++;
+                    }
+                }
             }
         }
     }
@@ -196,8 +211,8 @@ $stopwatch->block_message( "Finish blasting", 1 );
     my @sorted;
     for my $chr ( sort keys %{$nodes_of_chr} ) {
         for my $node ( @{ $nodes_of_chr->{$chr} } ) {
-            if (! exists $to_remove{$node} ) {
-                push @sorted , $node;
+            if ( !exists $to_remove{$node} ) {
+                push @sorted, $node;
             }
         }
     }

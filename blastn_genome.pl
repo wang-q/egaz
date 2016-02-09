@@ -135,7 +135,7 @@ MCE::Flow::init {
     max_workers => $parallel,
 };
 my $cmd
-    = sprintf "blastn -task megablast -evalue 0.01 -word_size 80"
+    = sprintf "blastn -task megablast -evalue 0.01 -word_size 40"
     . " -max_target_seqs 10 -dust no -soft_masking false"
     . " -outfmt '7 qseqid sseqid qstart qend sstart send qlen slen nident'"
     . " -num_threads %d -db %s -query %s", $parallel, $genome, $file;
@@ -185,7 +185,7 @@ $stopwatch->block_message( "Finish blasting", 1 );
     for my $chr ( sort keys %{$nodes_of_chr} ) {
         my @nodes = @{ $nodes_of_chr->{$chr} };
 
-        my $vicinity = 5;
+        my $vicinity = 10;
         for my $idx ( 0 .. $#nodes - $vicinity ) {
 
             for my $i ( 0 .. $vicinity - 1 ) {

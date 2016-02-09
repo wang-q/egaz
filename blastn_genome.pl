@@ -35,7 +35,7 @@ blastn_genome.pl - Get more paralog pieces by genomic blasting
     perl blastn_genome.pl -f <fasta file> -g <genome file> [options]
       Options:
         --help          -?          brief help message
-        --file          -f  STR     query fasta file
+        --file          -f  STR     blast report file
         --genome        -g  STR     reference genome file
         --coverage      -c  FLOAT   coverage of identical matches, default is [0.9]       
         --output        -o  STR     output
@@ -80,13 +80,10 @@ path($output)->remove;
 #----------------------------------------------------------#
 $stopwatch->start_message("Find paralogs...");
 
-$stopwatch->block_message("Build blast db");
-exec_cmd("makeblastdb -dbtype nucl -in $genome");
-
 #----------------------------------------------------------#
-# Blast
+# Parse blast reports
 #----------------------------------------------------------#
-$stopwatch->block_message("Run blast and parse reports");
+$stopwatch->block_message("Parse reports");
 
 my $worker = sub {
     my ( $self, $chunk_ref, $chunk_id ) = @_;
@@ -126,7 +123,8 @@ my $worker = sub {
         }
     }
 
-    printf "Gather %d pieces\n", scalar keys %heads;
+    printf " " x 4 . "Gather %d pieces\n", scalar keys %heads;
+    printf " " x 4 . "Last query name is %s\n", ( split /\s+/, $lines[-1] )[0];
     MCE->gather(%heads);
 };
 
@@ -134,14 +132,7 @@ MCE::Flow::init {
     chunk_size  => $chunk_size,
     max_workers => $parallel,
 };
-my $cmd
-    = sprintf "blastn -task megablast -evalue 0.01 -word_size 40"
-    . " -max_target_seqs 10 -dust no -soft_masking false"
-    . " -outfmt '7 qseqid sseqid qstart qend sstart send qlen slen nident'"
-    . " -num_threads %d -db %s -query %s", $parallel, $genome, $file;
-open my $fh_pipe, '-|', $cmd;
-my %locations = mce_flow_f $worker, $fh_pipe;
-close $fh_pipe;
+my %locations = mce_flow_f $worker, $file;
 MCE::Flow::finish;
 
 $stopwatch->block_message( "Finish blasting", 1 );

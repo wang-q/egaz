@@ -37,7 +37,7 @@ blastn_paralog.pl - Link paralog sequences
     perl blastn_paralog.pl -f <fasta file> [options]
       Options:
         --help          -?          brief help message
-        --file          -f  STR     query fasta file
+        --file          -f  STR     blast report file
         --coverage      -c  FLOAT   default is [0.9]       
         --output        -o  STR     output
         --parallel      -p  INT     default is [8]
@@ -72,13 +72,10 @@ if ( !$output ) {
 #----------------------------------------------------------#
 $stopwatch->start_message("Link paralogs...");
 
-$stopwatch->block_message("Build blast db");
-exec_cmd("makeblastdb -dbtype nucl -in $file");
-
 #----------------------------------------------------------#
 # Blast
 #----------------------------------------------------------#
-$stopwatch->block_message("Run blast and parse reports");
+$stopwatch->block_message("Parse reports");
 
 my $worker = sub {
     my ( $self, $chunk_ref, $chunk_id ) = @_;
@@ -131,14 +128,7 @@ MCE::Flow::init {
     chunk_size  => $chunk_size,
     max_workers => $parallel,
 };
-my $cmd
-    = sprintf "blastn -task megablast -evalue 0.01 -word_size 40"
-    . " -max_target_seqs 10 -dust no -soft_masking false"
-    . " -outfmt '7 qseqid sseqid qstart qend sstart send qlen slen nident'"
-    . " -num_threads %d -db %s -query %s", $parallel, $file, $file;
-open my $fh_pipe, '-|', $cmd;
-my @all_links = mce_flow_f $worker, $fh_pipe;
-close $fh_pipe;
+my @all_links = mce_flow_f $worker, $file;
 MCE::Flow::finish;
 
 #----------------------------------------------------------#

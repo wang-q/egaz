@@ -77,8 +77,8 @@ exec_cmd("makeblastdb -dbtype nucl -in $genome");
 
 $stopwatch->block_message("Blasting...");
 my $cmd
-    = sprintf "blastn -task megablast -evalue 0.0001 -word_size 40"    # megablast with word size 40
-    . " -max_target_seqs 10 -max_hsps 5 -culling_limit 10"             # reduce size of reports
+    = sprintf "blastn -task megablast -evalue 0.01 -word_size 40"    # megablast with word size 40
+    . " -max_target_seqs 20 -max_hsps 10 -culling_limit 20"             # reduce size of reports
     . " -dust no -soft_masking false"
     . " -outfmt '7 qseqid sseqid qstart qend sstart send qlen slen nident'"
     . " -num_threads %d -db %s -query %s"

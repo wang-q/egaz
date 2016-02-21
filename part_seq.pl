@@ -36,7 +36,7 @@ GetOptions(
     'help|?'     => sub { HelpMessage(0) },
     'input|i=s'  => \my $in_dir,
     'output|o=s' => \my $out_dir,
-    'chunk=i'  => \( my $chunk_size  = 10_010_000 ),
+    'chunk=i'       => \( my $chunk_size  = 10_010_000 ),
     'overlap=i'     => \( my $overlap     = 10_000 ),
     'wrap_length=i' => \( my $wrap_length = 60 ),
 ) or HelpMessage(1);

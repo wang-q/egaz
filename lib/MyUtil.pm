@@ -17,8 +17,8 @@ use vars qw(@ISA @EXPORT_OK %EXPORT_TAGS);
 %EXPORT_TAGS = (
     all => [
         qw{
-            string_to_set set_to_string change_strand read_sizes revcom exec_cmd run_sparsemem get_seq_faidx
-            get_size_faops decode_header encode_header change_name_chopped sort_cc
+            string_to_set set_to_string change_strand read_sizes revcom exec_cmd run_sparsemem
+            get_seq_faidx get_size_faops decode_header encode_header change_name_chopped sort_cc
             },
     ],
 );
@@ -302,7 +302,6 @@ sub change_name_chopped {
 
     return ( $new_seq_of, $new_names );
 }
-
 
 sub sort_cc {
     my @cc = @_;

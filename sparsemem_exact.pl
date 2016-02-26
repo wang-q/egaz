@@ -38,6 +38,8 @@ sparsemem_exact.pl - Get exact genome locations of sequence pieces in a fasta fi
         --file          -f  STR     query fasta file
         --genome        -g  STR     reference genome file
         --length        -l  INT     Match length of sparsemem, default is [100]
+        --discard       -d  INT     Discard blocks with copy number larger than this,
+                                    default is [0]
         --output        -o  STR     output
         --debug                     Write mem.yml for debugging
 
@@ -53,9 +55,10 @@ GetOptions(
     'help|?'     => sub { HelpMessage(0) },
     'file|f=s'   => \my $file,
     'genome|g=s' => \my $genome,
-    'length|l=i' => \( my $match_length = 100 ),
-    'output|o=s' => \( my $output ),
-    'debug'      => \( my $debug ),
+    'length|l=i'  => \( my $match_length = 100 ),
+    'discard|d=i' => \( my $discard      = 0 ),
+    'output|o=s'  => \( my $output ),
+    'debug'       => \( my $debug ),
 ) or HelpMessage(1);
 
 if ( !$output ) {
@@ -151,7 +154,12 @@ $stopwatch->block_message("Write replace tsv file");
 
 for my $ori_name ( keys %locations ) {
     my @matches = keys %{ $locations{$ori_name} };
-    if ( @matches > 1 ) {
+    if ( $discard and @matches > $discard ) {
+        printf "    %s\tgot %d matches, discard it\n", $ori_name, scalar(@matches);
+        path($output)->append($ori_name);
+        path($output)->append("\n");
+    }
+    elsif ( @matches > 1 ) {
         printf "    %s\tgot %d matches\n", $ori_name, scalar(@matches);
         path($output)->append( join( "\t", $ori_name, @matches ) );
         path($output)->append("\n");

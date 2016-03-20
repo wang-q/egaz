@@ -33,7 +33,7 @@ concat_fasta.pl - concatenate blocked fasta files
         --in_dir        -i  STR     fasta files' location
         --out_file      -o  STR     output file
         --sampling      -s          random sampling
-        --total_length  -l  INT     stop when exceed this length.
+        --total         -l  INT     stop when exceed this length.
         --relaxed       -rp         output relaxed phylip instead of fasta
         --wrap          -w  INT     long line wrap length
         --gzip                      input files are gzipped. .fas.gz

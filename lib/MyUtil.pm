@@ -234,9 +234,13 @@ sub encode_header {
     my $only_essential = shift;
 
     my $header;
-    $header .= $info->{name};
-    $header .= "." . $info->{chr_name};
-    $header .= "(" . $info->{chr_strand} . ")";
+    if ( defined $info->{name} ) {
+        $header .= $info->{name} . ".";
+    }
+    $header .= $info->{chr_name};
+    if ( defined $info->{chr_strand} ) {
+        $header .= "(" . $info->{chr_strand} . ")";
+    }
     $header .= ":" . $info->{chr_start};
     $header .= "-" . $info->{chr_end};
 

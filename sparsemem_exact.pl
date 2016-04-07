@@ -87,9 +87,11 @@ $stopwatch->block_message("Generate sparsemem reports");
 
 my $mem_result = run_sparsemem( $file, $genome, $match_length );
 
+$stopwatch->print_message("parse sparsemem");
 tie my %match_of, "Tie::IxHash";
+my $fh_mem = $mem_result->openr;
 my $cur_name;
-for my $line ( split /\n/, $mem_result ) {
+while ( my $line = <$fh_mem> ) {
     if ( $line =~ /^\>/ ) {
         $line =~ s/^\>\s*//;
         chomp $line;
@@ -118,7 +120,9 @@ for my $line ( split /\n/, $mem_result ) {
     else {    # Blank line, do nothing
     }
 }
+close $fh_mem;
 
+$stopwatch->print_message("get exact matches");
 my $size_of = get_size_faops($file);
 tie my %locations, "Tie::IxHash";    #  genome location - simple location
 for my $seq_name ( keys %match_of ) {
@@ -151,7 +155,6 @@ for my $seq_name ( keys %match_of ) {
 }
 
 $stopwatch->block_message("Write replace tsv file");
-
 for my $ori_name ( keys %locations ) {
     my @matches = keys %{ $locations{$ori_name} };
     if ( $discard and @matches > $discard ) {

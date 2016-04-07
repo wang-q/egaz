@@ -125,9 +125,14 @@ sub run_sparsemem {
     my $genome = shift;
     my $length = shift || 20;
 
-    my $cmd = sprintf "sparsemem -maxmatch -F -l %d -b -n -k 3 -threads 3 %s %s", $length, $genome,
-        $file;
-    my $result = `$cmd`;
+    my $result = Path::Tiny->tempfile;
+
+    my $cmd = sprintf "sparsemem -maxmatch -F -l %d -b -n -k 3 -threads 3 %s %s > %s",
+        $length,
+        $genome,
+        $file,
+        $result->stringify;
+    system $cmd;
 
     return $result;
 }

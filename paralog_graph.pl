@@ -23,7 +23,7 @@ use MyUtil qw(string_to_set change_strand);
 
 =head1 NAME
 
-paralog_graph.pl - merge overlapped nodes of paralog graph
+paralog_graph.pl - merge overlapped nodes in paralog graph
     
 =head1 SYNOPSIS
 
@@ -77,7 +77,7 @@ if ($merge_file) {
     $merged_of = LoadFile($merge_file);
 }
 
-# nodes are in "chr1:50-100" or "chr1(+):50-100" form, and with an attribute of intspan object
+# nodes are in "1:50-100" or "1(+):50-100" form, and with an attribute of intspan object
 for my $file (@files) {
     open my $in_fh, "<", $file;
 LINE: while ( my $line = <$in_fh> ) {
@@ -85,6 +85,8 @@ LINE: while ( my $line = <$in_fh> ) {
         chomp $line;
 
         my (@nodes) = ( split /\t/, $line )[ 0, 1 ];
+        next unless defined $nodes[0];
+        next unless defined $nodes[1];
         my ($hit_strand) = ( split /\t/, $line )[2];
         if (! defined $hit_strand) {
             $hit_strand = "+";

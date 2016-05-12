@@ -35,8 +35,6 @@ concat_fasta.pl - concatenate blocked fasta files
         --sampling      -s          random sampling
         --total         -l  INT     stop when exceed this length.
         --relaxed       -rp         output relaxed phylip instead of fasta
-        --wrap          -w  INT     long line wrap length
-        --gzip                      input files are gzipped. .fas.gz
 
     perl concat_fasta.pl --in_dir S288CvsRM11 -o S288CvsRM11.fasta
 
@@ -49,8 +47,6 @@ GetOptions(
     'sampling|s'   => \my $sampling,
     'total|l=i'    => \my $total_length,
     'relaxed|rp'   => \my $relaxed_phylip,
-    'wrap|w=i' => \( my $wrap = 0 ),
-    'gzip' => \my $gzip,
 ) or HelpMessage(1);
 
 #----------------------------------------------------------#
@@ -60,15 +56,11 @@ unless ($out_file) {
     $out_file = path($in_dir)->stringify . ( $relaxed_phylip ? ".concat.phy" : ".concat.fas" );
 }
 
-my @files;
-if ( !$gzip ) {
-    @files = sort File::Find::Rule->file->name( '*.fa', '*.fas', '*.fasta' )->in($in_dir);
-    printf "\n----Total .fas Files: %4s----\n\n", scalar @files;
-}
-if ( scalar @files == 0 or $gzip ) {
+my @files = sort File::Find::Rule->file->name( '*.fa', '*.fas', '*.fasta' )->in($in_dir);
+printf "\n----Total .fas Files: %4s----\n\n", scalar @files;
+if ( scalar @files == 0 ) {
     @files = sort File::Find::Rule->file->name( '*.fa.gz', '*.fas.gz', '*.fasta.gz' )->in($in_dir);
     printf "\n----Total .fas.gz Files: %4s----\n\n", scalar @files;
-    $gzip++;
 }
 
 exit unless scalar @files;
@@ -79,13 +71,13 @@ exit unless scalar @files;
 # process each .fasta files
 my $stopwatch = AlignDB::Stopwatch->new;
 
-my $all_names = gather_names( \@files, $gzip );
+my $all_names = gather_names( \@files );
 print Dump $all_names;
 
 my $seq_of_ary = [];
 for my $file (@files) {
     print "Process $file\n";
-    my $count = gather_seq( $file, $all_names, $seq_of_ary, $gzip );
+    my $count = gather_seq( $file, $all_names, $seq_of_ary );
     print "Add $count sequence blocks\n";
 }
 
@@ -115,14 +107,9 @@ if ($relaxed_phylip) {
 else {
     for my $name ( @{$all_names} ) {
         print {$out_fh} ">$name\n";
-        if ($wrap) {
-            for ( my $pos = 0; $pos < $seq_length; $pos += $wrap ) {
-                print {$out_fh} substr( $all_seq_of->{$name}, $pos, $wrap ), "\n";
-            }
-        }
-        else {
-            print {$out_fh} $all_seq_of->{$name}, "\n";
-        }
+
+        print {$out_fh} $all_seq_of->{$name}, "\n";
+
     }
 }
 close $out_fh;
@@ -132,17 +119,11 @@ exit;
 
 sub gather_names {
     my $files = shift;
-    my $gzip  = shift;
 
     my @names;
     for my $file ( @{$files} ) {
-        my $in_fh;
-        if ( !$gzip ) {
-            open $in_fh, '<', $file;
-        }
-        else {
-            $in_fh = IO::Zlib->new( $file, "rb" );
-        }
+        my $in_fh = IO::Zlib->new( $file, "rb" );
+
         while (<$in_fh>) {
             my $index = index $_, '>';
             if ( $index == 0 ) {
@@ -150,7 +131,7 @@ sub gather_names {
                 push @names, $_;
             }
         }
-        close $in_fh;
+        $in_fh->close;
     }
 
     @names = map { s/\>//; ( split /\s+/ )[0] } @names;
@@ -164,17 +145,10 @@ sub gather_seq {
     my $infile     = shift;
     my $all_names  = shift;
     my $ary_seq_of = shift;
-    my $gzip       = shift;
 
     my $count = 0;
 
-    my $in_fh;
-    if ( !$gzip ) {
-        open $in_fh, '<', $infile;
-    }
-    else {
-        $in_fh = IO::Zlib->new( $infile, "rb" );
-    }
+    my $in_fh = IO::Zlib->new( $infile, "rb" );
 
     my $content = '';
     while ( my $line = <$in_fh> ) {
@@ -223,7 +197,7 @@ sub gather_seq {
             $content .= $line;
         }
     }
-    close $in_fh;
+    $in_fh->close;
 
     return $count;
 }

@@ -45,22 +45,6 @@ sub read_fasta {
     return ( \%seqs, \@seq_names );
 }
 
-# in situ convert reference of string to string
-# For the sake of efficiency, the return value should be discarded
-sub _ref2str {
-    my $ref = shift;
-
-    if ( ref $ref eq "REF" ) {
-        $$ref = $$$ref;    # this is very weird, but it works
-    }
-
-    unless ( ref $ref eq "SCALAR" ) {
-        carp "Wrong parameter passed\n";
-    }
-
-    return $ref;
-}
-
 sub exec_cmd {
     my $cmd = shift;
 

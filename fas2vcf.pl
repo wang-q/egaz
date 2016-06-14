@@ -3,7 +3,7 @@ use strict;
 use warnings;
 use autodie;
 
-use Getopt::Long qw(HelpMessage);
+use Getopt::Long;
 use FindBin;
 use YAML qw(Dump Load DumpFile LoadFile);
 
@@ -13,7 +13,7 @@ use Path::Tiny;
 use AlignDB::Stopwatch;
 
 use lib "$FindBin::RealBin/lib";
-use MyUtil qw(read_sizes exec_cmd);
+use MyUtil qw(exec_cmd);
 
 #----------------------------------------------------------#
 # GetOpt section
@@ -39,11 +39,11 @@ fas2vcf.pl - list variations in blocked fasta file
 my $jvk = '~/share/jvarkit/biostar94573.jar';
 
 GetOptions(
-    'help|?'     => sub { HelpMessage(0) },
+    'help|?'     => sub { Getopt::Long::HelpMessage(0) },
     'input|i=s'  => \my $in_file,
     'output|o=s' => \my $out_file,
     'size|s=s'   => \my $size_file,
-) or HelpMessage(1);
+) or Getopt::Long::HelpMessage(1);
 
 #----------------------------------------------------------#
 # Search for all files
@@ -56,7 +56,7 @@ if ( !defined $out_file ) {
 
 my $temp_dir = Path::Tiny->tempdir( TEMPLATE => "fas_XXXXXXXX" );
 my $temp_list = Path::Tiny->tempfile( TEMPLATE => "fas_XXXXXXXX" );
-my $length_of = read_sizes($size_file);
+my $length_of = App::RL::Common::read_sizes($size_file);
 
 {
     $stopwatch->block_message("Split fas");

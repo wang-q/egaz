@@ -3,7 +3,7 @@ use strict;
 use warnings;
 use autodie;
 
-use Getopt::Long qw(HelpMessage);
+use Getopt::Long;
 use FindBin;
 use YAML qw(Dump Load DumpFile LoadFile);
 
@@ -22,7 +22,7 @@ use File::Find::Rule;
 use File::Copy::Recursive qw(fcopy);
 
 use lib "$FindBin::RealBin/lib";
-use MyUtil qw(read_sizes exec_cmd);
+use MyUtil qw(exec_cmd);
 
 #----------------------------------------------------------#
 # GetOpt section
@@ -59,7 +59,7 @@ mz.pl - Multiz step by step
 =cut
 
 GetOptions(
-    'help|?'   => sub { HelpMessage(0) },
+    'help|?'   => sub { Getopt::Long::HelpMessage(0) },
     'dir|d=s'  => \my @dirs,
     'out|o=s'  => \my $out_dir,
     'tree=s'   => \my $tree_file,
@@ -67,7 +67,7 @@ GetOptions(
     'all'      => \my $all,
     'noclean'  => \my $noclean,
     'parallel|p=i' => \( my $parallel = 1 ),
-) or HelpMessage(1);
+) or Getopt::Long::HelpMessage(1);
 
 #----------------------------------------------------------#
 # Init

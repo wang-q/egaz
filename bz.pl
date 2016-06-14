@@ -3,7 +3,7 @@ use strict;
 use warnings;
 use autodie;
 
-use Getopt::Long qw(HelpMessage);
+use Getopt::Long;
 use FindBin;
 use YAML qw(Dump Load DumpFile LoadFile);
 
@@ -15,7 +15,7 @@ use String::Compare;
 use Time::Duration;
 
 use lib "$FindBin::RealBin/lib";
-use MyUtil qw(read_sizes exec_cmd);
+use MyUtil qw(exec_cmd);
 
 #----------------------------------------------------------#
 # GetOpt section
@@ -107,7 +107,7 @@ my %opt = (
 );
 
 GetOptions(
-    'help|?'          => sub { HelpMessage(0) },
+    'help|?'          => sub { Getopt::Long::HelpMessage(0) },
     'dir_target|dt=s' => \my $dir_target,
     'dir_query|dq=s'  => \my $dir_query,
     'dir_lav|dl=s' => \( my $dir_lav  = '.' ),
@@ -129,7 +129,7 @@ GetOptions(
     'H=s'           => \$opt{H},
     'Y=s'           => \$opt{Y},
     'Z=s'           => \$opt{Z},
-) or HelpMessage(1);
+) or Getopt::Long::HelpMessage(1);
 
 #----------------------------------------------------------#
 # Init
@@ -277,10 +277,10 @@ if ( $t_parted or $q_parted ) {
 
     my ( %t_length, %q_length );
     if ($t_parted) {
-        %t_length = %{ read_sizes( path( $dir_target, 'chr.sizes' )->stringify ) };
+        %t_length = %{ App::RL::Common::read_sizes( path( $dir_target, 'chr.sizes' )->stringify ) };
     }
     if ($q_parted) {
-        %q_length = %{ read_sizes( path( $dir_query, 'chr.sizes' )->stringify ) };
+        %q_length = %{ App::RL::Common::read_sizes( path( $dir_query, 'chr.sizes' )->stringify ) };
     }
 
     my $mce = MCE->new( chunk_size => 1, max_workers => $parallel, );

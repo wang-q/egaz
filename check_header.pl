@@ -9,7 +9,7 @@ use YAML qw(Dump Load DumpFile LoadFile);
 
 use Path::Tiny;
 use IO::Zlib;
-use App::Fasops::Common qw(decode_header revcom);
+use App::Fasops::Common;
 use AlignDB::Stopwatch;
 
 #----------------------------------------------------------#
@@ -106,13 +106,13 @@ sub check_seq {
     my $seq      = shift;
     my $log_file = shift;
 
-    my $info = decode_header($header);
+    my $info = App::Fasops::Common::decode_header($header);
     if ( $name and $name ne $info->{name} ) {
         return;
     }
 
     if ( $info->{chr_strand} eq '-' ) {
-        $seq = revcom($seq);
+        $seq = App::Fasops::Common::revcom($seq);
     }
 
     my $location;

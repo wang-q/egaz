@@ -13,7 +13,7 @@ use vars qw(@ISA @EXPORT_OK %EXPORT_TAGS);
 %EXPORT_TAGS = (
     all => [
         qw{
-            read_fasta revcom exec_cmd
+            read_fasta exec_cmd
             },
     ],
 );
@@ -43,16 +43,6 @@ sub read_fasta {
     }
 
     return ( \%seqs, \@seq_names );
-}
-
-sub revcom {
-    my $seq = shift;
-
-    _ref2str( \$seq );
-    $seq =~ tr/ACGTMRWSYKVHDBNacgtmrwsykvhdbn-/TGCAKYWSRMBDHVNtgcakywsrmbdhvn-/;
-    my $seq_rc = reverse $seq;
-
-    return $seq_rc;
 }
 
 # in situ convert reference of string to string

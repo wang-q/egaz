@@ -3,14 +3,15 @@ use strict;
 use warnings;
 use autodie;
 
-use Getopt::Long qw(HelpMessage);
+use Getopt::Long;
 use FindBin;
 use YAML qw(Dump Load DumpFile LoadFile);
 
 use Path::Tiny;
+use App::Fasops::Common;
 
 use lib "$FindBin::RealBin/lib";
-use MyUtil qw(read_fasta revcom);
+use MyUtil qw(read_fasta);
 
 #----------------------------------------------------------#
 # GetOpt section
@@ -46,10 +47,10 @@ to the reverse-complemented coordinates of its chromosome.
 
 
 GetOptions(
-    'help|?'     => sub { HelpMessage(0) },
+    'help|?'     => sub { Getopt::Long::HelpMessage(0) },
     'input|i=s'  => \my $lavfile,
     'output|o=s' => \my $output,
-) or HelpMessage(1);
+) or Getopt::Long::HelpMessage(1);
 
 $lavfile =~ s/\\/\//g;
 unless ($output) {
@@ -126,7 +127,7 @@ for my $lav (@lavs) {
     my $q_name = $cache{$q_file}->{seq_names}->[ $q_contig - 1 ];
     my $q_seq  = $cache{$q_file}->{seq_of}->{$q_name};
     if ($q_strand) {
-        $q_seq = revcom($q_seq);
+        $q_seq = App::Fasops::Common::revcom($q_seq);
     }
 
     #----------------------------#

@@ -9,9 +9,7 @@ use YAML::Syck;
 
 use File::Find::Rule;
 use Path::Tiny;
-
-use lib "$FindBin::RealBin/lib";
-use MyUtil qw(read_fasta);
+use App::Fasops::Common;
 
 #----------------------------------------------------------#
 # GetOpt section
@@ -54,8 +52,8 @@ path($out_dir)->mkpath;
 my %length_of;
 for my $file (@files) {
     print "For file: $file\n";
-    my ( $seq_of, $seq_names ) = read_fasta($file);
-    for my $name ( @{$seq_names} ) {
+    my $seq_of = App::Fasops::Common::read_fasta($file);
+    for my $name ( keys %{$seq_of} ) {
         print "Fasta header: $name\n";
         if ( exists $length_of{$name} ) {
             print "Seq $name has been processed, skip it.\n";
@@ -74,7 +72,8 @@ for my $file (@files) {
         if ( $size > $chunk_size + $overlap ) {
 
             # break it up
-            my $intervalsRef = overlappingIntervals( 0, $size, $chunk_size, $overlap );
+            my $intervalsRef
+                = overlappingIntervals( 0, $size, $chunk_size, $overlap );
             for my $i ( @{$intervalsRef} ) {
                 my ( $start, $end ) = @{$i};
                 path( $out_dir, "$new_name.fa[$start,$end]" )->touch;

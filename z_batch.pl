@@ -3,18 +3,15 @@ use strict;
 use warnings;
 use autodie;
 
-use Getopt::Long qw(HelpMessage);
+use Getopt::Long;
 use FindBin;
-use YAML qw(Dump Load DumpFile LoadFile);
+use YAML::Syck;
 
 use Path::Tiny;
 use Time::Duration;
 
 use AlignDB::IntSpan;
 use AlignDB::Stopwatch;
-
-use lib "$FindBin::RealBin/lib";
-use MyUtil qw(exec_cmd);
 
 #----------------------------------------------------------#
 # GetOpt section
@@ -33,14 +30,14 @@ z_batch.pl - bz.pl, lpcna.pl and amp.pl
 =cut
 
 GetOptions(
-    'help|?'          => sub { HelpMessage(0) },
+    'help|?'          => sub { Getopt::Long::HelpMessage(0) },
     'dir_target|dt=s' => \my $dir_target,
     'dir_query|dq=s'  => \my $dir_query,
     'dir_working|dw=s' => \( my $dir_working = '.' ),
     'parallel|p=i'     => \( my $parallel    = 1 ),
     'run|r=s'          => \( my $task        = 1 ),
     'clean'            => \( my $clean ),
-) or HelpMessage(1);
+) or Getopt::Long::HelpMessage(1);
 
 my @tasks;
 {
@@ -124,5 +121,15 @@ for my $step (@tasks) {
 print "\n";
 
 exit;
+
+sub exec_cmd {
+    my $cmd = shift;
+
+    print "\n", "-" x 12, "CMD", "-" x 15, "\n";
+    print $cmd , "\n";
+    print "-" x 30, "\n";
+
+    system $cmd;
+}
 
 __END__

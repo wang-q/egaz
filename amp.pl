@@ -3,18 +3,14 @@ use strict;
 use warnings;
 use autodie;
 
-use Getopt::Long qw(HelpMessage);
+use Getopt::Long;
 use FindBin;
-use YAML qw(Dump Load DumpFile LoadFile);
+use YAML::Syck;
 
 use MCE;
-
 use File::Find::Rule;
 use Path::Tiny;
 use Time::Duration;
-
-use lib "$FindBin::RealBin/lib";
-use MyUtil qw(exec_cmd);
 
 #----------------------------------------------------------#
 # GetOpt section
@@ -46,13 +42,13 @@ amp.pl - axt-maf-phast pipeline
 =cut
 
 GetOptions(
-    'help|?'          => sub { HelpMessage(0) },
+    'help|?'          => sub { Getopt::Long::HelpMessage(0) },
     'dir_target|dt=s' => \my $dir_target,
     'dir_query|dq=s'  => \my $dir_query,
     'dir_lav|dl=s' => \( my $dir_lav  = '.' ),
     'parallel|p=i' => \( my $parallel = 1 ),
     'syn'          => \my $syn,
-) or HelpMessage(1);
+) or Getopt::Long::HelpMessage(1);
 
 #----------------------------------------------------------#
 # Init
@@ -149,7 +145,11 @@ else {
         # the filter, the children are not even considered.
         # usage:
         #    netFilter in.net(s)
-        my $cmd = "netFilter" . " -syn" . " $files[0]" . " | netSplit stdin" . " $dir_synnet";
+        my $cmd
+            = "netFilter" . " -syn"
+            . " $files[0]"
+            . " | netSplit stdin"
+            . " $dir_synnet";
         exec_cmd($cmd);
     }
 
@@ -177,9 +177,9 @@ else {
     my $worker = sub {
         my ( $self, $chunk_ref, $chunk_id ) = @_;
 
-        my $file       = $chunk_ref->[0];
-        my $base       = path($file)->basename(".net");
-        my $output     = path( $dir_mafsynnet, "$base.synNet.maf.gz" )->stringify;
+        my $file   = $chunk_ref->[0];
+        my $base   = path($file)->basename(".net");
+        my $output = path( $dir_mafsynnet, "$base.synNet.maf.gz" )->stringify;
         my $chain_file = path( $dir_chain, "$base.chain" )->stringify;
 
         print "Run netToAxt axtSort axtToMaf...\n";
@@ -226,5 +226,15 @@ print "Runtime ", duration( time - $start_time ), ".\n";
 print "=" x 30, "\n";
 
 exit;
+
+sub exec_cmd {
+    my $cmd = shift;
+
+    print "\n", "-" x 12, "CMD", "-" x 15, "\n";
+    print $cmd , "\n";
+    print "-" x 30, "\n";
+
+    system $cmd;
+}
 
 __END__

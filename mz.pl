@@ -5,7 +5,7 @@ use autodie;
 
 use Getopt::Long;
 use FindBin;
-use YAML qw(Dump Load DumpFile LoadFile);
+use YAML::Syck;
 
 use MCE;
 use MCE::Flow;
@@ -20,9 +20,6 @@ use Number::Format qw(format_bytes);
 
 use File::Find::Rule;
 use File::Copy::Recursive qw(fcopy);
-
-use lib "$FindBin::RealBin/lib";
-use MyUtil qw(exec_cmd);
 
 #----------------------------------------------------------#
 # GetOpt section
@@ -116,7 +113,7 @@ my @species;         # species list gathered from maf files; and then shift targ
         my @list = grep { defined $_ } split /\n/, `$cmd`;
         if ( @list > 2 ) {
             print "There are three or more species in [$file].\n";
-            print Dump \@list;
+            print YAML::Syck::Dump \@list;
             die;
         }
 
@@ -183,7 +180,7 @@ if ( scalar @species < 3 ) {
 #----------------------------#
 if ( @potential_targets > 1 ) {
     print "There are more than 1 potential targets\n";
-    print Dump { potential_targets => \@potential_targets };
+    print YAML::Syck::Dump { potential_targets => \@potential_targets };
     die;
 }
 else {
@@ -227,7 +224,7 @@ my @chr_names = sort $file_of->{$target_name}{chr_set}->members;    # all target
     if ( @occurrence > 1 ) {
         print "Species occurrence number inconsistency [@occurrence]\n";
         print "We will skip some chromosomes\n";
-        print Dump \%seen;
+        print YAML::Syck::Dump \%seen;
         print "\n";
 
         my $intersect_chr_set = $file_of->{$target_name}{chr_set}->clone;
@@ -257,7 +254,7 @@ unless ($out_dir) {
 }
 path($out_dir)->mkpath;
 
-DumpFile(
+YAML::Syck::DumpFile(
     path( $out_dir, 'info.yml' )->stringify,
     {   file_of   => $file_of,
         chr_names => \@chr_names,
@@ -428,6 +425,16 @@ sub ladder {
     }
 
     return \@ladder;
+}
+
+sub exec_cmd {
+    my $cmd = shift;
+
+    print "\n", "-" x 12, "CMD", "-" x 15, "\n";
+    print $cmd , "\n";
+    print "-" x 30, "\n";
+
+    system $cmd;
 }
 
 __END__

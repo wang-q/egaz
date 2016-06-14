@@ -5,7 +5,7 @@ use autodie;
 
 use Getopt::Long;
 use FindBin;
-use YAML qw(Dump Load DumpFile LoadFile);
+use YAML::Syck;
 
 use MCE;
 
@@ -13,9 +13,6 @@ use File::Find::Rule;
 use Path::Tiny;
 use String::Compare;
 use Time::Duration;
-
-use lib "$FindBin::RealBin/lib";
-use MyUtil qw(exec_cmd);
 
 #----------------------------------------------------------#
 # GetOpt section
@@ -136,7 +133,7 @@ GetOptions(
 #----------------------------------------------------------#
 # predefined parameter sets
 # if given a specified set, run with this parameter set
-my $parameters = LoadFile("$FindBin::Bin/parameters.yaml");
+my $parameters = LoadFile("$FindBin::RealBin/parameters.yaml");
 if ($specified) {
     print "*** Use parameter set $specified\n";
     my $para_set = $parameters->{$specified};
@@ -244,7 +241,8 @@ printf "\n----%4s .fa files for query----\n",  scalar @query_files;
             my $t_base = path($target_file)->basename;
             my ($query_file) = map { $_->[0] }
                 sort { $b->[1] <=> $a->[1] }
-                map { [ $_, compare( path($_)->basename, $t_base ) ] } @query_files;
+                map { [ $_, compare( path($_)->basename, $t_base ) ] }
+                @query_files;
             push @jobs, "$target_file|$query_file";
         }
     }
@@ -277,10 +275,18 @@ if ( $t_parted or $q_parted ) {
 
     my ( %t_length, %q_length );
     if ($t_parted) {
-        %t_length = %{ App::RL::Common::read_sizes( path( $dir_target, 'chr.sizes' )->stringify ) };
+        %t_length = %{
+            App::RL::Common::read_sizes(
+                path( $dir_target, 'chr.sizes' )->stringify
+            )
+        };
     }
     if ($q_parted) {
-        %q_length = %{ App::RL::Common::read_sizes( path( $dir_query, 'chr.sizes' )->stringify ) };
+        %q_length = %{
+            App::RL::Common::read_sizes(
+                path( $dir_query, 'chr.sizes' )->stringify
+            )
+        };
     }
 
     my $mce = MCE->new( chunk_size => 1, max_workers => $parallel, );
@@ -350,5 +356,15 @@ if ( !$noaxt ) {
 }
 
 exit;
+
+sub exec_cmd {
+    my $cmd = shift;
+
+    print "\n", "-" x 12, "CMD", "-" x 15, "\n";
+    print $cmd , "\n";
+    print "-" x 30, "\n";
+
+    system $cmd;
+}
 
 __END__

@@ -3,9 +3,9 @@ use strict;
 use warnings;
 use autodie;
 
-use Getopt::Long qw(HelpMessage);
+use Getopt::Long;
 use FindBin;
-use YAML qw(Dump Load DumpFile LoadFile);
+use YAML::Syck;
 
 use Path::Tiny;
 use List::Util qw(max);
@@ -15,12 +15,12 @@ use List::Util qw(max);
 #----------------------------------------------------------#
 
 GetOptions(
-    'help|?' => sub { HelpMessage(0) },
+    'help|?' => sub { Getopt::Long::HelpMessage(0) },
     'input|i=s'  => \my $lavfile,
     'output|o=s' => \my $outfile,
     'len0|0=i'   => \(my $len0 = 0),
     'len1|1=i'   => \(my $len1 = 0),
-) or HelpMessage(1);
+) or Getopt::Long::HelpMessage(1);
 
 #----------------------------------------------------------#
 # now run!

@@ -3,9 +3,9 @@ use strict;
 use warnings;
 use autodie;
 
-use Getopt::Long qw(HelpMessage);
+use Getopt::Long;
 use FindBin;
-use YAML qw(Dump Load DumpFile LoadFile);
+use YAML::Syck;
 
 use Path::Tiny;
 use IO::Zlib;
@@ -41,12 +41,12 @@ perl check_header.pl --in ~/data/alignment/self/yeast_new/S288cvsselfalign_fasta
 =cut
 
 GetOptions(
-    'help|?'     => sub { HelpMessage(0) },
+    'help|?'     => sub { Getopt::Long::HelpMessage(0) },
     'input|i=s'  => \my $in_file,
     'genome|g=s' => \my $genome,
     'name|n=s'   => \my $name,
     'detail'     => \my $detail,
-) or HelpMessage(1);
+) or Getopt::Long::HelpMessage(1);
 
 #----------------------------------------------------------#
 # Start

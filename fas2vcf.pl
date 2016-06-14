@@ -5,15 +5,12 @@ use autodie;
 
 use Getopt::Long;
 use FindBin;
-use YAML qw(Dump Load DumpFile LoadFile);
+use YAML::Syck;
 
 use IO::Zlib;
 use Path::Tiny;
 
 use AlignDB::Stopwatch;
-
-use lib "$FindBin::RealBin/lib";
-use MyUtil qw(exec_cmd);
 
 #----------------------------------------------------------#
 # GetOpt section

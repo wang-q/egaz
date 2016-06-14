@@ -3,9 +3,9 @@ use strict;
 use warnings;
 use autodie;
 
-use Getopt::Long qw(HelpMessage);
+use Getopt::Long;
 use FindBin;
-use YAML qw(Dump Load DumpFile LoadFile);
+use YAML::Syck;
 
 use File::Find::Rule;
 use Path::Tiny;
@@ -33,13 +33,13 @@ part_seq.pl - Partitions a set of sequences by size
 =cut
 
 GetOptions(
-    'help|?'     => sub { HelpMessage(0) },
+    'help|?'     => sub { Getopt::Long::HelpMessage(0) },
     'input|i=s'  => \my $in_dir,
     'output|o=s' => \my $out_dir,
     'chunk=i'       => \( my $chunk_size  = 10_010_000 ),
     'overlap=i'     => \( my $overlap     = 10_000 ),
     'wrap_length=i' => \( my $wrap_length = 60 ),
-) or HelpMessage(1);
+) or Getopt::Long::HelpMessage(1);
 
 #----------------------------------------------------------#
 # now run!

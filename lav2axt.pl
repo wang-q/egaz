@@ -5,7 +5,7 @@ use autodie;
 
 use Getopt::Long;
 use FindBin;
-use YAML qw(Dump Load DumpFile LoadFile);
+use YAML::Syck;
 
 use Path::Tiny;
 use App::Fasops::Common;

@@ -3,9 +3,9 @@ use strict;
 use warnings;
 use autodie;
 
-use Getopt::Long qw(HelpMessage);
+use Getopt::Long;
 use FindBin;
-use YAML qw(Dump Load DumpFile LoadFile);
+use YAML::Syck;
 
 use MCE;
 
@@ -41,13 +41,13 @@ concat_fasta.pl - concatenate blocked fasta files
 =cut
 
 GetOptions(
-    'help|?'       => sub { HelpMessage(0) },
+    'help|?'       => sub { Getopt::Long::HelpMessage(0) },
     'in_dir|i=s'   => \my $in_dir,
     'out_file|o=s' => \my $out_file,
     'sampling|s'   => \my $sampling,
     'total|l=i'    => \my $total_length,
     'relaxed|rp'   => \my $relaxed_phylip,
-) or HelpMessage(1);
+) or Getopt::Long::HelpMessage(1);
 
 #----------------------------------------------------------#
 # Search for all files
@@ -72,7 +72,7 @@ exit unless scalar @files;
 my $stopwatch = AlignDB::Stopwatch->new;
 
 my $all_names = gather_names( \@files );
-print Dump $all_names;
+print YAML::Syck::Dump $all_names;
 
 my $seq_of_ary = [];
 for my $file (@files) {

@@ -13,7 +13,7 @@ use vars qw(@ISA @EXPORT_OK %EXPORT_TAGS);
 %EXPORT_TAGS = (
     all => [
         qw{
-            read_fasta exec_cmd
+            read_fasta
             },
     ],
 );
@@ -45,12 +45,3 @@ sub read_fasta {
     return ( \%seqs, \@seq_names );
 }
 
-sub exec_cmd {
-    my $cmd = shift;
-
-    print "\n", "-" x 12, "CMD", "-" x 15, "\n";
-    print $cmd , "\n";
-    print "-" x 30, "\n";
-
-    system $cmd;
-}

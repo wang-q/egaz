@@ -3,9 +3,9 @@ use strict;
 use warnings;
 use autodie;
 
-use Getopt::Long qw(HelpMessage);
+use Getopt::Long;
 use FindBin;
-use YAML qw(Dump Load DumpFile LoadFile);
+use YAML::Syck;
 
 use MCE;
 
@@ -13,9 +13,6 @@ use File::Find::Rule;
 use Path::Tiny;
 use Time::Duration;
 use IPC::Cmd qw(can_run);
-
-use lib "$FindBin::RealBin/lib";
-use MyUtil qw(exec_cmd);
 
 #----------------------------------------------------------#
 # GetOpt section
@@ -53,14 +50,14 @@ lpcna.pl - lav-psl-chain-net-axt pipeline
 =cut
 
 GetOptions(
-    'help|?'          => sub { HelpMessage(0) },
+    'help|?'          => sub { Getopt::Long::HelpMessage(0) },
     'dir_target|dt=s' => \( my $dir_target ),
     'dir_query|dq=s'  => \( my $dir_query ),
     'dir_lav|dl=s' => \( my $dir_lav   = '.' ),
     'parallel|p=i' => \( my $parallel  = 1 ),
     'linearGap=i'  => \( my $linearGap = "loose" ),
     'minScore=i'   => \( my $minScore  = "1000" ),
-) or HelpMessage(1);
+) or Getopt::Long::HelpMessage(1);
 
 #----------------------------------------------------------#
 # Init
@@ -378,5 +375,15 @@ print "Runtime ", duration( time - $start_time ), ".\n";
 print "=" x 30, "\n";
 
 exit;
+
+sub exec_cmd {
+    my $cmd = shift;
+
+    print "\n", "-" x 12, "CMD", "-" x 15, "\n";
+    print $cmd , "\n";
+    print "-" x 30, "\n";
+
+    system $cmd;
+}
 
 __END__

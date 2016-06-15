@@ -1,4 +1,4 @@
-# Alignments of S. cerevisiae strains
+# Alignments of *S. cerevisiae* strains
 
 ## Detailed steps
 
@@ -164,5 +164,4 @@ perl ~/Scripts/alignDB/util/check_header.pl \
     -n RM11 \
     -g RM11.fa \
     --detail
-``
-
+```

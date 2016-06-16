@@ -26,7 +26,7 @@ use MyUtil qw(string_to_set);
 
 =head1 NAME
 
-merge_node.pl - merge overlapped nodes of paralog graph
+merge_node.pl - merge overlapped nodes via overlapping graph
     
 =head1 SYNOPSIS
 

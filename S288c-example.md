@@ -80,22 +80,24 @@ fasops links axt.correct.fas -o stdout \
     > links.lastz.tsv
 
 # remove species names
-fasops separate axt.correct.fas --nodash -o stdout \
+fasops separate axt.correct.fas --nodash --rc -o stdout \
     | perl -nl -e '/^>/ and s/^>(target|query)\./\>/; print;' \
+    | faops filter -u stdin stdout \
+    | faops filter -n 250 stdin stdout \
     > axt.gl.fasta
 
 # Get more paralogs
-perl ~/Scripts/egas/blastn_genome.pl -c 0.95 -f axt.gl.fasta -g genome.fa -o axt.bg.fasta
+perl ~/Scripts/egas/fasta_blastn.pl  -f axt.gl.fasta -g genome.fa -o axt.bg.blast 
+perl ~/Scripts/egas/blastn_genome.pl -f axt.bg.blast -g genome.fa -o axt.bg.fasta -c 0.95
 
-if [ -e axt.bg.fasta ];
-then
-    cat axt.gl.fasta axt.bg.fasta > axt.all.fasta
-else
-    cat axt.gl.fasta > axt.all.fasta
-fi
+cat axt.gl.fasta axt.bg.fasta \
+    | faops filter -u stdin stdout \
+    | faops filter -n 250 stdin stdout \
+    > axt.all.fasta
 
 # link paralogs
-perl ~/Scripts/egas/blastn_paralog.pl -f axt.all.fasta -c 0.95 -o links.blast.tsv
+perl ~/Scripts/egas/fasta_blastn.pl   -f axt.all.fasta -g axt.all.fasta -o axt.all.blast
+perl ~/Scripts/egas/blastn_paralog.pl -f axt.all.blast -c 0.95 -o links.blast.tsv
 
 # merge
 perl ~/Scripts/egas/merge_node.pl    -v -f links.lastz.tsv -f links.blast.tsv -o S288c.merge.yml -c 0.95

@@ -2,14 +2,16 @@
 
 ## Detailed steps
 
-### prepare seqs
+On server with dual E5-2690 v3.
+
+### Prepare sequences
 
 ```bash
 mkdir -p ~/data/self_alignment
 cp -R ~/data/alignment/Ensembl/Atha ~/data/self_alignment
 ```
 
-## self alignment
+### self alignment
 
 ```bash
 cd ~/data/self_alignment
@@ -25,17 +27,17 @@ time perl ~/Scripts/egaz/bz.pl --parallel 8 \
     -dt Atha \
     -dq Atha \
     -dl Athavsselfalign
-# real    27m54.586s
-# user    187m1.586s
-# sys     0m11.192s
+# real    21m18.036s
+# user    149m57.173s
+# sys     0m33.244s
 
 time perl ~/Scripts/egaz/lpcna.pl --parallel 8 \
     -dt Atha \
     -dq Atha \
     -dl Athavsselfalign
-# real    1m31.218s
-# user    1m49.880s
-# sys     1m7.008s
+# real    1m23.318s
+# user    1m50.571s
+# sys     1m12.166s
 
 ```
 
@@ -64,22 +66,19 @@ find ../Atha -type f -name "*.fa" \
 faops size genome.fa > chr.sizes
 
 # Correct genomic positions
-fasops axt2fas ../Athavsselfalign/axtNet/*.axt.gz -l 1000 -o stdout > axt.fas
+fasops axt2fas ../Athavsselfalign/axtNet/*.axt.gz -l 1000 -s chr.sizes -o stdout > axt.fas
 fasops separate axt.fas --nodash -s .sep.fasta
 
 time perl ~/Scripts/egas/sparsemem_exact.pl -f target.sep.fasta -g genome.fa \
     --length 500 -o replace.target.tsv
-# real    1m18.015s
-# user    2m15.346s
-# sys     0m4.220s
+# real    0m56.162s
+# user    1m29.831s
+# sys     0m5.504s
 
 fasops replace axt.fas replace.target.tsv -o axt.target.fas
 
-time perl ~/Scripts/egas/sparsemem_exact.pl -f query.sep.fasta -g genome.fa \
+perl ~/Scripts/egas/sparsemem_exact.pl -f query.sep.fasta -g genome.fa \
     --length 500 -o replace.query.tsv
-# real    1m16.346s
-# user    2m11.253s
-# sys     0m5.515s
 fasops replace axt.target.fas replace.query.tsv -o axt.correct.fas
 
 # coverage stats
@@ -94,34 +93,39 @@ fasops links axt.correct.fas -o stdout \
     > links.lastz.tsv
 
 # remove species names
-fasops separate axt.correct.fas --nodash -o stdout \
+fasops separate axt.correct.fas --nodash --rc -o stdout \
     | perl -nl -e '/^>/ and s/^>(target|query)\./\>/; print;' \
+    | faops filter -u stdin stdout \
+    | faops filter -n 250 stdin stdout \
     > axt.gl.fasta
 
 # Get more paralogs
-time perl ~/Scripts/egas/blastn_genome.pl -c 0.95 -f axt.gl.fasta -g genome.fa -o axt.bg.fasta
-# real    8m46.682s
-# user    19m46.518s
-# sys     0m20.860s
+time perl ~/Scripts/egas/fasta_blastn.pl  -f axt.gl.fasta -g genome.fa -o axt.bg.blast
+# real    0m30.664s
+# user    0m57.902s
+# sys     0m3.393s
+time perl ~/Scripts/egas/blastn_genome.pl -f axt.bg.blast -g genome.fa -o axt.bg.fasta -c 0.95
+# real    0m55.320s
+# user    0m33.419s
+# sys     0m24.626s
 
-if [ -e axt.bg.fasta ];
-then
-    cat axt.gl.fasta axt.bg.fasta > axt.all.fasta
-else
-    cat axt.gl.fasta > axt.all.fasta
-fi
+cat axt.gl.fasta axt.bg.fasta \
+    | faops filter -u stdin stdout \
+    | faops filter -n 250 stdin stdout \
+    > axt.all.fasta
 
 # link paralogs
-time perl ~/Scripts/egas/blastn_paralog.pl -f axt.all.fasta -c 0.95 -o links.blast.tsv
-# real    1m21.303s
-# user    3m46.030s
-# sys     0m1.738s
+time perl ~/Scripts/egas/fasta_blastn.pl   -f axt.all.fasta -g axt.all.fasta -o axt.all.blast
+# real    0m19.575s
+# user    0m55.607s
+# sys     0m1.503s
+perl ~/Scripts/egas/blastn_paralog.pl -f axt.all.blast -c 0.95 -o links.blast.tsv
 
 # merge
 time perl ~/Scripts/egas/merge_node.pl    -v -f links.lastz.tsv -f links.blast.tsv -o Atha.merge.yml -c 0.95
-# real    7m44.699s
-# user    22m14.711s
-# sys     0m0.865s
+# real    3m48.494s
+# user    10m37.467s
+# sys     0m1.047s
 perl ~/Scripts/egas/paralog_graph.pl -v -f links.lastz.tsv -f links.blast.tsv -m Atha.merge.yml --nonself -o Atha.merge.graph.yml
 perl ~/Scripts/egas/cc.pl               -f Atha.merge.graph.yml
 time perl ~/Scripts/egas/proc_cc_chop.pl     -f Atha.cc.raw.yml --size chr.sizes --genome genome.fa --msa mafft

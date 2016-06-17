@@ -27,15 +27,15 @@ use MyUtil qw(string_to_set);
 =head1 NAME
 
 merge_node.pl - merge overlapped nodes via overlapping graph
-    
+
 =head1 SYNOPSIS
 
     perl merge_node.pl -f <file> [options]
       Options:
         --help          -?          brief help message
         --file          -f  STR     tsv link files
-        --output        -o  STR     output   
-        --coverage      -c  FLOAT   When larger than this ratio, merge nodes, default is [0.9]       
+        --output        -o  STR     output
+        --coverage      -c  FLOAT   When larger than this ratio, merge nodes, default is [0.9]
         --parallel      -p  INT     default is [8]
         --verbose       -v          verbose mode
 
@@ -47,7 +47,7 @@ GetOptions(
     'output|o=s' => \my $output,
     'coverage|c=f' => \( my $coverage = 0.9 ),
     'parallel|p=i' => \( my $parallel = 8 ),
-    'v|verbose|v'  => \my $verbose,
+    'verbose|v'    => \my $verbose,
 ) or HelpMessage(1);
 
 die "Need --file\n" if @files == 0;
@@ -93,9 +93,12 @@ for my $file (@files) {
             if ( !$graph_of_chr->{$chr}->has_vertex($node) ) {
 
                 $graph_of_chr->{$chr}->add_vertex($node);
-                $graph_of_chr->{$chr}->set_vertex_attribute( $node, "chr",    $chr );
-                $graph_of_chr->{$chr}->set_vertex_attribute( $node, "set",    $set );
-                $graph_of_chr->{$chr}->set_vertex_attribute( $node, "strand", $strand );
+                $graph_of_chr->{$chr}
+                    ->set_vertex_attribute( $node, "chr", $chr );
+                $graph_of_chr->{$chr}
+                    ->set_vertex_attribute( $node, "set", $set );
+                $graph_of_chr->{$chr}
+                    ->set_vertex_attribute( $node, "strand", $strand );
 
                 print "Add node $node\n";
             }
@@ -135,7 +138,8 @@ my $worker = sub {
                     and $coverage_j >= $coverage )
                 {
                     push @edges, [ $nodes[$i], $nodes[$j] ];
-                    printf " " x 8 . "Merge with Node %d / %d\t%s\n", $j, $#nodes, $node_j;
+                    printf " " x 8 . "Merge with Node %d / %d\t%s\n", $j,
+                        $#nodes, $node_j;
                 }
             }
         }
@@ -204,7 +208,8 @@ for my $chr ( sort keys %{$graph_of_chr} ) {
                     $node_change = 1;
                 }
             }
-            $merged_of->{$node} = { node => $merge_node, change => $node_change };
+            $merged_of->{$node}
+                = { node => $merge_node, change => $node_change };
             print " " x 8 . "$node => $merge_node\n";
         }
     }

@@ -213,9 +213,9 @@ for my $chr ( sort keys %{$graph_of_chr} ) {
             print " " x 8 . "$node => $merge_node\n";
         }
     }
-
-    DumpFile( $output, $merged_of );
 }
+
+DumpFile( $output, $merged_of );
 
 $stopwatch->end_message;
 exit;

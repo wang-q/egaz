@@ -3,9 +3,9 @@ use strict;
 use warnings;
 use autodie;
 
-use Getopt::Long qw(HelpMessage);
+use Getopt::Long;
 use FindBin;
-use YAML qw(Dump Load DumpFile LoadFile);
+use YAML::Syck;
 
 use Path::Tiny;
 use Tie::IxHash;
@@ -13,9 +13,10 @@ use List::MoreUtils qw(uniq);
 
 use AlignDB::IntSpan;
 use AlignDB::Stopwatch;
+use App::RL::Common;
 
 use lib "$FindBin::RealBin/lib";
-use MyUtil qw(run_sparsemem get_seq_faidx get_size_faops decode_header encode_header);
+use MyUtil qw(run_sparsemem get_seq_faidx get_size_faops);
 
 #----------------------------------------------------------#
 # GetOpt section
@@ -52,14 +53,14 @@ sparsemem_exact.pl - Get exact genome locations of sequence pieces in a fasta fi
 =cut
 
 GetOptions(
-    'help|?'     => sub { HelpMessage(0) },
+    'help|?'     => sub { Getopt::Long::HelpMessage(0) },
     'file|f=s'   => \my $file,
     'genome|g=s' => \my $genome,
     'length|l=i'  => \( my $match_length = 100 ),
     'discard|d=i' => \( my $discard      = 0 ),
     'output|o=s'  => \( my $output ),
     'debug'       => \( my $debug ),
-) or HelpMessage(1);
+) or Getopt::Long::HelpMessage(1);
 
 if ( !$output ) {
     $output = path($file)->basename( ".fasta", ".fas", ".fa" );
@@ -132,18 +133,18 @@ for my $seq_name ( keys %match_of ) {
         $ori_name =~ s/ Reverse//;
         $chr_strand = "-";
     }
-    my $species_name = decode_header($ori_name)->{name};
+    my $species_name = App::RL::Common::decode_header($ori_name)->{name};
 
     for my $f ( @{ $match_of{$seq_name} } ) {
         next unless $f->[2] == 1;
         next unless $f->[3] == $size_of->{$ori_name};
 
-        my $header = encode_header(
-            {   name       => $species_name,
-                chr_name   => $f->[0],
-                chr_start  => $f->[1],
-                chr_end    => $f->[1] + $f->[3] - 1,
-                chr_strand => $chr_strand,
+        my $header = App::RL::Common::encode_header(
+            {   name   => $species_name,
+                chr    => $f->[0],
+                start  => $f->[1],
+                end    => $f->[1] + $f->[3] - 1,
+                strand => $chr_strand,
             }
         );
         if ( !exists $locations{$ori_name} ) {
@@ -158,7 +159,8 @@ $stopwatch->block_message("Write replace tsv file");
 for my $ori_name ( keys %locations ) {
     my @matches = keys %{ $locations{$ori_name} };
     if ( $discard and @matches > $discard ) {
-        printf "    %s\tgot %d matches, discard it\n", $ori_name, scalar(@matches);
+        printf "    %s\tgot %d matches, discard it\n", $ori_name,
+            scalar(@matches);
         path($output)->append($ori_name);
         path($output)->append("\n");
     }
@@ -176,8 +178,13 @@ for my $ori_name ( keys %locations ) {
 
 if ($debug) {
     $stopwatch->block_message("Dump mem_exact.yml");
-    DumpFile( 'mem_exact.yml',
-        { mem_result => $mem_result, info => \%match_of, locations => \%locations } );
+    YAML::Syck::DumpFile(
+        'mem_exact.yml',
+        {   mem_result => $mem_result,
+            info       => \%match_of,
+            locations  => \%locations
+        }
+    );
 }
 
 $stopwatch->end_message;

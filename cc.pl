@@ -24,7 +24,7 @@ use MyUtil qw(string_to_set set_to_string change_strand sort_cc);
 =head1 NAME
 
 cc.pl - connected components of paralog graph
-    
+
 =head1 SYNOPSIS
 
     perl cc.pl -f <file> [options]

@@ -31,9 +31,9 @@ sub string_to_set {
     my ( $chr_part, $runlist ) = split /:/, $node;
 
     my $head_qr = qr{
-        (?:(?P<name>[\w_]+)\.)?    
-        (?P<chr_name>[\w-]+)        
-        (?:\((?P<chr_strand>.+)\))?  
+        (?:(?P<name>[\w_]+)\.)?
+        (?P<chr_name>[\w-]+)
+        (?:\((?P<chr_strand>.+)\))?
     }xi;
     $chr_part =~ $head_qr;
 
@@ -87,27 +87,10 @@ sub read_sizes {
 sub revcom {
     my $seq = shift;
 
-    _ref2str( \$seq );
     $seq =~ tr/ACGTMRWSYKVHDBNacgtmrwsykvhdbn-/TGCAKYWSRMBDHVNtgcakywsrmbdhvn-/;
     my $seq_rc = reverse $seq;
 
     return $seq_rc;
-}
-
-# in situ convert reference of string to string
-# For the sake of efficiency, the return value should be discarded
-sub _ref2str {
-    my $ref = shift;
-
-    if ( ref $ref eq "REF" ) {
-        $$ref = $$$ref;    # this is very weird, but it works
-    }
-
-    unless ( ref $ref eq "SCALAR" ) {
-        carp "Wrong parameter passed\n";
-    }
-
-    return $ref;
 }
 
 sub exec_cmd {
@@ -176,13 +159,13 @@ sub decode_header {
 
     # S288C.chrI(+):27070-29557|species=S288C
     my $head_qr = qr{
-        (?:(?P<name>[\w_]+)\.)?    
-        (?P<chr_name>[\w-]+)        
-        (?:\((?P<chr_strand>.+)\))? 
+        (?:(?P<name>[\w_]+)\.)?
+        (?P<chr_name>[\w-]+)
+        (?:\((?P<chr_strand>.+)\))?
         [\:]                        # spacer
-        (?P<chr_start>\d+)    
+        (?P<chr_start>\d+)
         [\_\-]                      # spacer
-        (?P<chr_end>\d+)        
+        (?P<chr_end>\d+)
     }xi;
 
     tie my %info, "Tie::IxHash";

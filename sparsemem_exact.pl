@@ -16,7 +16,6 @@ use AlignDB::Stopwatch;
 use App::RL::Common;
 
 use lib "$FindBin::RealBin/lib";
-use MyUtil qw(run_sparsemem get_seq_faidx get_size_faops);
 
 #----------------------------------------------------------#
 # GetOpt section
@@ -190,5 +189,56 @@ if ($debug) {
 $stopwatch->end_message;
 
 exit;
+
+sub run_sparsemem {
+    my $file   = shift;
+    my $genome = shift;
+    my $length = shift || 20;
+
+    my $result = Path::Tiny->tempfile;
+
+    my $cmd = sprintf "sparsemem -maxmatch -F -l %d -b -n -k 3 -threads 3 %s %s > %s",
+        $length,
+        $genome,
+        $file,
+        $result->stringify;
+    system $cmd;
+
+    return $result;
+}
+
+sub get_seq_faidx {
+    my $genome   = shift;
+    my $location = shift;    # I:1-100
+
+    my $cmd = sprintf "samtools faidx %s %s", $genome, $location;
+    open my $fh_pipe, '-|', $cmd;
+
+    my $seq;
+    while ( my $line = <$fh_pipe> ) {
+        chomp $line;
+        if ( $line =~ /^[\w-]+/ ) {
+            $seq .= $line;
+        }
+    }
+    close $fh_pipe;
+
+    return $seq;
+}
+
+sub get_size_faops {
+    my $file = shift;
+
+    my $cmd = sprintf "faops size %s", $file;
+    my @lines = grep {defined} split /\n/, `$cmd`;
+
+    tie my %length_of, "Tie::IxHash";
+    for (@lines) {
+        my ( $key, $value ) = split /\t/;
+        $length_of{$key} = $value;
+    }
+
+    return \%length_of;
+}
 
 __END__

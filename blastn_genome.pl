@@ -15,7 +15,6 @@ use AlignDB::IntSpan;
 use AlignDB::Stopwatch;
 
 use lib "$FindBin::RealBin/lib";
-use MyUtil qw(exec_cmd string_to_set get_seq_faidx);
 
 #----------------------------------------------------------#
 # GetOpt section
@@ -224,5 +223,46 @@ $stopwatch->block_message( "Finish blasting", 1 );
 $stopwatch->end_message;
 
 exit;
+
+sub string_to_set {
+    my $node = shift;
+
+    my ( $chr_part, $runlist ) = split /:/, $node;
+
+    my $head_qr = qr{
+        (?:(?P<name>[\w_]+)\.)?
+        (?P<chr_name>[\w-]+)
+        (?:\((?P<chr_strand>.+)\))?
+    }xi;
+    $chr_part =~ $head_qr;
+
+    my $chr    = $+{chr_name};
+    my $strand = "+";
+    if ( defined $+{chr_strand} ) {
+        $strand = $+{chr_strand};
+    }
+    my $set = AlignDB::IntSpan->new($runlist);
+
+    return ( $chr, $set, $strand );
+}
+
+sub get_seq_faidx {
+    my $genome   = shift;
+    my $location = shift;    # I:1-100
+
+    my $cmd = sprintf "samtools faidx %s %s", $genome, $location;
+    open my $fh_pipe, '-|', $cmd;
+
+    my $seq;
+    while ( my $line = <$fh_pipe> ) {
+        chomp $line;
+        if ( $line =~ /^[\w-]+/ ) {
+            $seq .= $line;
+        }
+    }
+    close $fh_pipe;
+
+    return $seq;
+}
 
 __END__

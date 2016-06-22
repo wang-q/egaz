@@ -7,6 +7,10 @@
     * [*S. cerevisiae* reference strain S288c](doc/S288c-example.md)
     * [*A. thaliana*](doc/Atha.md)
 
-* Workflow
-    * ![multi](doc/Fig_flowchart.png)
-    * ![self](doc/flow.png)
+* Workflow of multiply alignments
+
+![multi](doc/Fig_flowchart.png)
+
+* Workflow of self alignments
+
+![self](doc/flow.png)

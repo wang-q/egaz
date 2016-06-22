@@ -72,7 +72,7 @@ fasops replace axt.target.fas replace.query.tsv -o axt.correct.fas
 fasops covers axt.correct.fas -o axt.correct.yml
 runlist split axt.correct.yml -s .temp.yml
 runlist compare --op union target.temp.yml query.temp.yml -o axt.union.yml
-runlist stat --size chr.sizes axt.union.yml -o ../S288c_result/S288c.union.csv
+runlist stat --size chr.sizes axt.union.yml -o union.csv
 
 # links by lastz-chain
 fasops links axt.correct.fas -o stdout \
@@ -87,7 +87,7 @@ fasops separate axt.correct.fas --nodash --rc -o stdout \
     > axt.gl.fasta
 
 # Get more paralogs
-perl ~/Scripts/egas/fasta_blastn.pl  -f axt.gl.fasta -g genome.fa -o axt.bg.blast 
+perl ~/Scripts/egas/fasta_blastn.pl  -f axt.gl.fasta -g genome.fa -o axt.bg.blast
 perl ~/Scripts/egas/blastn_genome.pl -f axt.bg.blast -g genome.fa -o axt.bg.fasta -c 0.95
 
 cat axt.gl.fasta axt.bg.fasta \
@@ -100,14 +100,51 @@ perl ~/Scripts/egas/fasta_blastn.pl   -f axt.all.fasta -g axt.all.fasta -o axt.a
 perl ~/Scripts/egas/blastn_paralog.pl -f axt.all.blast -c 0.95 -o links.blast.tsv
 
 # merge
-perl ~/Scripts/egas/merge_node.pl    -v -f links.lastz.tsv -f links.blast.tsv -o S288c.merge.yml -c 0.95
-perl ~/Scripts/egas/paralog_graph.pl -v -f links.lastz.tsv -f links.blast.tsv -m S288c.merge.yml --nonself -o S288c.merge.graph.yml
-perl ~/Scripts/egas/cc.pl               -f S288c.merge.graph.yml
-perl ~/Scripts/egas/proc_cc_chop.pl     -f S288c.cc.raw.yml --size chr.sizes --genome genome.fa --msa mafft
-perl ~/Scripts/egas/proc_cc_stat.pl     -f S288c.cc.yml --size chr.sizes
+rangeops merge   links.lastz.tsv    links.blast.tsv -o links.merge.tsv -c 0.95 -p 8
+rangeops sort    links.lastz.tsv    links.blast.tsv -o links.sort.tsv
+rangeops clean   links.sort.tsv  -r links.merge.tsv -o links.clean.tsv
+rangeops connect links.clean.tsv                    -o links.connect.tsv
+rangeops filter  links.connect.tsv                  -o links.filter.tsv -r 0.8
 
-runlist stat --size chr.sizes S288c.cc.chr.runlist.yml
-perl ~/Scripts/egas/cover_figure.pl --size chr.sizes -f S288c.cc.chr.runlist.yml
+cat links.filter.tsv \
+    | perl -nla -F"\t" -e 'print for @F' \
+    | runlist cover stdin -o cover.yml
+
+# fasops create links.filter.tsv
+# fasops refine
+# fasops links --best
+# fasops create links.pairwise.tsv
+
+echo "key,count" > links.count.csv
+for n in 2 3 4 5-50
+do
+    rangeops filter links.filter.tsv -n ${n} -o stdout \
+        > links.copy${n}.tsv
+
+    cat links.copy${n}.tsv \
+        | perl -nla -F"\t" -e 'print for @F' \
+        | runlist cover stdin -o copy${n}.yml
+
+    wc -l links.copy${n}.tsv \
+        | perl -nl -e '
+            @fields = grep {/\S+/} split /\s+/;
+            next unless @fields == 2;
+            next unless $fields[1] =~ /links\.([\w-]+)\.tsv/;
+            printf qq{%s,%s\n}, $1, $fields[0];
+        ' \
+        >> links.count.csv
+
+    rm links.copy${n}.tsv
+done
+
+runlist merge copy2.yml copy3.yml copy4.yml copy5-50.yml -o copy.all.yml
+runlist stat --size chr.sizes copy.all.yml --mk --all -o links.copy.csv
+
+cat links.copy.csv links.count.csv \
+    | perl ~/Scripts/withncbi/util/merge_csv.pl --concat -o links.csv
+
+runlist stat --size chr.sizes cover.yml
+perl ~/Scripts/egas/cover_figure.pl --size chr.sizes -f cover.yml
 ```
 
 ### result & clean
@@ -115,10 +152,11 @@ perl ~/Scripts/egas/cover_figure.pl --size chr.sizes -f S288c.cc.chr.runlist.yml
 ```bash
 cd ~/Scripts/egas/data/S288c_proc
 
-cp S288c.cc.yml ../S288c_result
-mv S288c.cc.csv ../S288c_result
-mv S288c.cc.chr.runlist.yml.csv ../S288c_result/S288c.chr.csv
-mv S288c.cc.chr.runlist.png ../S288c_result/S288c.chr.png
+cp cover.yml        ../S288c_result/S288c.cover.yml
+cp links.filter.tsv ../S288c_result/S288c.links.tsv
+mv links.csv        ../S288c_result/S288c.links.csv
+mv cover.yml.csv    ../S288c_result/S288c.cover.csv
+mv cover.png        ../S288c_result/S288c.cover.png
 
 # clean
 find . -type f -name "*genome.fa*" | xargs rm
@@ -127,6 +165,7 @@ find . -type f -name "*.sep.fasta" | xargs rm
 find . -type f -name "axt.*" | xargs rm
 find . -type f -name "replace.*.tsv" | xargs rm
 find . -type f -name "*.temp.yml" | xargs rm
+find . -type f -name "copy*.yml" | xargs rm
 ```
 
 ## Use `strain_bz_self.pl`

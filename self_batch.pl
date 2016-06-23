@@ -57,10 +57,8 @@ strain_bz_self.pl - Full procedure for self genome alignments.
 
 =cut
 
-my $aligndb = path( $Config->{run}{aligndb} )->stringify;
-my $egaz    = path( $Config->{run}{egaz} )->stringify;
-my $egas    = path( $Config->{run}{egas} )->stringify;
-my $circos  = path( $Config->{run}{circos} )->stringify;
+my $aligndb = path( $FindBin::RealBin, "..", "alignDB" )->absolute->stringify;
+my $egaz = path($FindBin::RealBin)->absolute->stringify;
 
 GetOptions(
     'help|?' => sub { Getopt::Long::HelpMessage(0) },
@@ -352,12 +350,12 @@ fasops axt2fas [% working_dir %]/Pairwise/[% id %]vsselfalign/axtNet/*.axt.gz \
 fasops separate axt.fas -o [% working_dir %]/Processing/[% id %] --nodash -s .sep.fasta
 
 echo "* Target positions"
-perl [% egas %]/sparsemem_exact.pl -f target.sep.fasta -g genome.fa \
+perl [% egaz %]/sparsemem_exact.pl -f target.sep.fasta -g genome.fa \
     --length 500 --discard 50 -o replace.target.tsv
 fasops replace axt.fas replace.target.tsv -o axt.target.fas
 
 echo "* Query positions"
-perl [% egas %]/sparsemem_exact.pl -f query.sep.fasta -g genome.fa \
+perl [% egaz %]/sparsemem_exact.pl -f query.sep.fasta -g genome.fa \
     --length 500 --discard 50 -o replace.query.tsv
 fasops replace axt.target.fas replace.query.tsv -o axt.correct.fas
 
@@ -395,8 +393,8 @@ cat axt.gl.fasta > axt.all.fasta
 # Get more paralogs
 #----------------------------#
 echo "* Get more paralogs"
-perl [% egas %]/fasta_blastn.pl  -f axt.gl.fasta -g genome.fa -o axt.bg.blast --parallel [% parallel %]
-perl [% egas %]/blastn_genome.pl -f axt.bg.blast -g genome.fa -o axt.bg.fasta -c 0.95 --parallel [% parallel %]
+perl [% egaz %]/fasta_blastn.pl  -f axt.gl.fasta -g genome.fa -o axt.bg.blast --parallel [% parallel %]
+perl [% egaz %]/blastn_genome.pl -f axt.bg.blast -g genome.fa -o axt.bg.fasta -c 0.95 --parallel [% parallel %]
 cat axt.gl.fasta axt.bg.fasta \
     | faops filter -u stdin stdout \
     | faops filter -n 250 stdin stdout \
@@ -408,8 +406,8 @@ cat axt.gl.fasta axt.bg.fasta \
 #----------------------------#
 echo "* Link paralogs"
 sleep 1;
-perl [% egas %]/fasta_blastn.pl   -f axt.all.fasta -g axt.all.fasta -o axt.all.blast --parallel [% parallel %]
-perl [% egas %]/blastn_paralog.pl -f axt.all.blast -c 0.95 -o links.blast.tsv --parallel [% parallel %]
+perl [% egaz %]/fasta_blastn.pl   -f axt.all.fasta -g axt.all.fasta -o axt.all.blast --parallel [% parallel %]
+perl [% egaz %]/blastn_paralog.pl -f axt.all.blast -c 0.95 -o links.blast.tsv --parallel [% parallel %]
 
 #----------------------------#
 # Merge paralogs
@@ -417,14 +415,14 @@ perl [% egas %]/blastn_paralog.pl -f axt.all.blast -c 0.95 -o links.blast.tsv --
 echo "* Merge paralogs"
 sleep 1;
 
-perl [% egas %]/merge_node.pl -v -c 0.95 -o [% id %].merge.yml --parallel [% parallel %] \
+perl [% egaz %]/merge_node.pl -v -c 0.95 -o [% id %].merge.yml --parallel [% parallel %] \
 [% IF noblast -%]
     -f links.lastz.tsv
 [% ELSE -%]
     -f links.lastz.tsv -f links.blast.tsv
 [% END -%]
 
-perl [% egas %]/paralog_graph.pl -v -m [% id %].merge.yml --nonself -o [% id %].merge.graph.yml \
+perl [% egaz %]/paralog_graph.pl -v -m [% id %].merge.yml --nonself -o [% id %].merge.graph.yml \
 [% IF noblast -%]
     -f links.lastz.tsv
 [% ELSE -%]
@@ -432,13 +430,13 @@ perl [% egas %]/paralog_graph.pl -v -m [% id %].merge.yml --nonself -o [% id %].
 [% END -%]
 
 echo "* CC sequences and stats"
-perl [% egas %]/cc.pl           -f [% id %].merge.graph.yml
-perl [% egas %]/proc_cc_chop.pl -f [% id %].cc.raw.yml --size chr.sizes --genome genome.fa --msa [% msa %] --parallel [% parallel %]
-perl [% egas %]/proc_cc_stat.pl -f [% id %].cc.yml --size chr.sizes
+perl [% egaz %]/cc.pl           -f [% id %].merge.graph.yml
+perl [% egaz %]/proc_cc_chop.pl -f [% id %].cc.raw.yml --size chr.sizes --genome genome.fa --msa [% msa %] --parallel [% parallel %]
+perl [% egaz %]/proc_cc_stat.pl -f [% id %].cc.yml --size chr.sizes
 
 echo "* Coverage figure"
 runlist stat --size chr.sizes [% id %].cc.chr.runlist.yml;
-perl [% egas %]/cover_figure.pl --size chr.sizes -f [% id %].cc.chr.runlist.yml;
+perl [% egaz %]/cover_figure.pl --size chr.sizes -f [% id %].cc.chr.runlist.yml;
 
 #----------------------------#
 # result
@@ -475,7 +473,6 @@ EOF
             parallel    => $parallel,
             working_dir => $working_dir,
             egaz        => $egaz,
-            egas        => $egas,
             msa         => $msa,
             noblast     => $noblast,
             name_str    => $name_str,
@@ -762,7 +759,7 @@ perl -anl -e '
 #----------------------------#
 # run circos
 #----------------------------#
-perl [% circos %]/bin/circos -noparanoid -conf circos.conf
+circos -noparanoid -conf circos.conf
 
 [% END -%]
 
@@ -772,7 +769,6 @@ EOF
         {   stopwatch   => $stopwatch,
             parallel    => $parallel,
             working_dir => $working_dir,
-            circos      => $circos,
             name_str    => $name_str,
             all_ids     => [ $target, @queries ],
             data        => \@data,
@@ -903,7 +899,7 @@ EOF
         {   stopwatch   => $stopwatch,
             parallel    => $parallel,
             working_dir => $working_dir,
-            egas        => $egas,
+            egaz        => $egaz,
             name_str    => $name_str,
             all_ids     => [ $target, @queries ],
             data        => \@data,

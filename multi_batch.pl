@@ -345,6 +345,7 @@ mkdir -p [% working_dir %]/[% multi_name %]_rawphylo;
 echo "==> Convert maf to fas"
 
 [% FOREACH q IN queries -%]
+echo "    [% target %]vs[% q %]"
 mkdir -p [% working_dir %]/[% multi_name %]_raw/[% target %]vs[% q %]
 find [% working_dir %]/Pairwise/[% target %]vs[% q %] -name "*.maf" -or -name "*.maf.gz" \
     | parallel --no-run-if-empty -j 1 \
@@ -359,7 +360,7 @@ fasops covers \
 
 [% IF queries.size > 1 -%]
 #----------------------------#
-# intersect
+# Intersect
 #----------------------------#
 echo "==> Intersect"
 
@@ -374,8 +375,10 @@ runlist compare --op intersect \
 [% END -%]
 
 #----------------------------#
-# coverage
+# Coverage
 #----------------------------#
+echo "==> Coverage"
+
 runlist merge [% working_dir %]/[% multi_name %]_raw/*.yml \
     -o stdout \
     | runlist stat stdin \
@@ -390,6 +393,8 @@ runlist merge [% working_dir %]/[% multi_name %]_raw/*.yml \
 echo "==> Slicing with intersect"
 
 [% FOREACH q IN queries -%]
+echo "    [% target %]vs[% q %]"
+
 if [ -e [% working_dir %]/[% multi_name %]_raw/[% target %]vs[% q %].slice.fas ];
 then
     rm [% working_dir %]/[% multi_name %]_raw/[% target %]vs[% q %].slice.fas
@@ -410,6 +415,7 @@ find [% working_dir %]/[% multi_name %]_raw/[% target %]vs[% q %]/ -name "*.fas"
 #----------------------------#
 echo "==> Join intersects"
 
+echo "    fasops join"
 fasops join \
 [% FOREACH q IN queries -%]
     [% working_dir %]/[% multi_name %]_raw/[% target %]vs[% q %].slice.fas \
@@ -422,12 +428,14 @@ echo [% target %] > [% working_dir %]/[% multi_name %]_raw/names.list
 echo [% q %] >> [% working_dir %]/[% multi_name %]_raw/names.list
 [% END -%]
 
+echo "    fasops subset"
 fasops subset \
     [% working_dir %]/[% multi_name %]_raw/join.raw.fas \
     [% working_dir %]/[% multi_name %]_raw/names.list \
     --required \
     -o [% working_dir %]/[% multi_name %]_raw/join.filter.fas
 
+echo "    fasops refine"
 fasops refine \
     --msa mafft --parallel [% parallel %] \
     [% working_dir %]/[% multi_name %]_raw/join.filter.fas \
@@ -530,6 +538,7 @@ mkdir -p [% working_dir %]/[% multi_name %]_phylo;
 #----------------------------#
 # mz
 #----------------------------#
+echo "==> Run multiz"
 [% IF phylo_tree -%]
 perl [% egaz %]/mz.pl \
     [% FOREACH id IN queries -%]
@@ -564,7 +573,7 @@ find [% working_dir %]/[% multi_name %]_mz -type f -name "*.maf" | parallel --no
 #----------------------------#
 # maf2fas
 #----------------------------#
-echo "Convert maf to fas"
+echo "==> Convert maf to fas"
 find [% working_dir %]/[% multi_name %]_mz -name "*.maf" -or -name "*.maf.gz" \
     | parallel --no-run-if-empty -j [% parallel %] \
         fasops maf2fas {} -o [% working_dir %]/[% multi_name %]_fasta/{/}.fas
@@ -572,7 +581,7 @@ find [% working_dir %]/[% multi_name %]_mz -name "*.maf" -or -name "*.maf.gz" \
 #----------------------------#
 # refine fasta
 #----------------------------#
-echo "Refine fasta"
+echo "==> Refine fasta"
 find [% working_dir %]/[% multi_name %]_fasta -name "*.fas" -or -name "*.fas.gz" \
     | parallel --no-run-if-empty -j [% parallel %] '
         fasops refine \

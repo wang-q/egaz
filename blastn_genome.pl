@@ -3,9 +3,9 @@ use strict;
 use warnings;
 use autodie;
 
-use Getopt::Long qw(HelpMessage);
+use Getopt::Long;
 use FindBin;
-use YAML qw(Dump Load DumpFile LoadFile);
+use YAML::Syck;
 
 use Path::Tiny;
 use MCE;
@@ -13,8 +13,6 @@ use MCE::Flow Sereal => 1;
 
 use AlignDB::IntSpan;
 use AlignDB::Stopwatch;
-
-use lib "$FindBin::RealBin/lib";
 
 #----------------------------------------------------------#
 # GetOpt section
@@ -44,14 +42,14 @@ blastn_genome.pl - Get more paralog pieces by genomic blasting
 =cut
 
 GetOptions(
-    'help|?'   => sub { HelpMessage(0) },
+    'help|?'   => sub { Getopt::Long::HelpMessage(0) },
     'file|f=s' => \( my $file ),
     'coverage|c=f' => \( my $coverage   = 0.95 ),
     'genome|g=s'   => \( my $genome ),
     'output|o=s'   => \( my $output ),
     'parallel|p=i' => \( my $parallel   = 8 ),
     'chunk_size=i' => \( my $chunk_size = 500000 ),
-) or HelpMessage(1);
+) or Getopt::Long::HelpMessage(1);
 
 if ( !defined $file ) {
     die "Need --file\n";
@@ -263,6 +261,16 @@ sub get_seq_faidx {
     close $fh_pipe;
 
     return $seq;
+}
+
+sub exec_cmd {
+    my $string = shift;
+
+    print "\n", "-" x 12, "CMD", "-" x 15, "\n";
+    print $string , "\n";
+    print "-" x 30, "\n";
+
+    system $string;
 }
 
 __END__

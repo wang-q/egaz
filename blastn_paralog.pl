@@ -3,9 +3,9 @@ use strict;
 use warnings;
 use autodie;
 
-use Getopt::Long qw(HelpMessage);
+use Getopt::Long;
 use FindBin;
-use YAML qw(Dump Load DumpFile LoadFile);
+use YAML::Syck;
 
 use Path::Tiny;
 use MCE;
@@ -15,9 +15,6 @@ use List::MoreUtils qw(uniq);
 
 use AlignDB::IntSpan;
 use AlignDB::Stopwatch;
-
-use lib "$FindBin::RealBin/lib";
-use MyUtil qw(exec_cmd);
 
 #----------------------------------------------------------#
 # GetOpt section
@@ -46,13 +43,13 @@ blastn_paralog.pl - Link paralog sequences
 =cut
 
 GetOptions(
-    'help|?'   => sub { HelpMessage(0) },
+    'help|?'   => sub { Getopt::Long::HelpMessage(0) },
     'file|f=s' => \( my $file ),
     'coverage|c=f' => \( my $coverage   = 0.9 ),
     'output|o=s'   => \( my $output ),
     'parallel|p=i' => \( my $parallel   = 8 ),
     'chunk_size=i' => \( my $chunk_size = 500000 ),
-) or HelpMessage(1);
+) or Getopt::Long::HelpMessage(1);
 
 if ( !defined $file ) {
     die "Need --file\n";
@@ -142,5 +139,15 @@ path($output)->spew( map {"$_\n"} @all_links );
 $stopwatch->end_message;
 
 exit;
+
+sub exec_cmd {
+    my $string = shift;
+
+    print "\n", "-" x 12, "CMD", "-" x 15, "\n";
+    print $string , "\n";
+    print "-" x 30, "\n";
+
+    system $string;
+}
 
 __END__

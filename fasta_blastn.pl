@@ -3,15 +3,12 @@ use strict;
 use warnings;
 use autodie;
 
-use Getopt::Long qw(HelpMessage);
+use Getopt::Long;
 use FindBin;
-use YAML qw(Dump Load DumpFile LoadFile);
+use YAML::Syck;
 
 use Path::Tiny;
 use AlignDB::Stopwatch;
-
-use lib "$FindBin::RealBin/lib";
-use MyUtil qw(exec_cmd);
 
 #----------------------------------------------------------#
 # GetOpt section
@@ -39,12 +36,12 @@ fasta_blastn.pl - Blasting between two fasta files
 =cut
 
 GetOptions(
-    'help|?'     => sub { HelpMessage(0) },
+    'help|?'     => sub { Getopt::Long::HelpMessage(0) },
     'file|f=s'   => \( my $file ),
     'genome|g=s' => \( my $genome ),
     'output|o=s' => \( my $output ),
     'parallel|p=i' => \( my $parallel = 8 ),
-) or HelpMessage(1);
+) or Getopt::Long::HelpMessage(1);
 
 if ( !defined $file ) {
     die "Need --file\n";
@@ -77,8 +74,9 @@ exec_cmd("makeblastdb -dbtype nucl -in $genome");
 
 $stopwatch->block_message("Blasting...");
 my $cmd
-    = sprintf "blastn -task megablast -evalue 0.01 -word_size 40"    # megablast with word size 40
-    . " -max_target_seqs 20 -max_hsps 10 -culling_limit 20"             # reduce size of reports
+    = sprintf
+    "blastn -task megablast -evalue 0.01 -word_size 40" # megablast with word size 40
+    . " -max_target_seqs 20 -max_hsps 10 -culling_limit 20" # reduce size of reports
     . " -dust no -soft_masking false"
     . " -outfmt '7 qseqid sseqid qstart qend sstart send qlen slen nident'"
     . " -num_threads %d -db %s -query %s"
@@ -88,5 +86,15 @@ exec_cmd($cmd);
 $stopwatch->end_message;
 
 exit;
+
+sub exec_cmd {
+    my $string = shift;
+
+    print "\n", "-" x 12, "CMD", "-" x 15, "\n";
+    print $string , "\n";
+    print "-" x 30, "\n";
+
+    system $string;
+}
 
 __END__

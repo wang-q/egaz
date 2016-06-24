@@ -15,8 +15,6 @@ use AlignDB::IntSpan;
 use AlignDB::Stopwatch;
 use App::RL::Common;
 
-use lib "$FindBin::RealBin/lib";
-
 #----------------------------------------------------------#
 # GetOpt section
 #----------------------------------------------------------#

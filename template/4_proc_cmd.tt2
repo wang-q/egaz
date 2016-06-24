@@ -1,0 +1,200 @@
+#!/bin/bash
+# perl [% stopwatch.cmd_line %]
+
+cd [% working_dir %]
+sleep 1;
+
+[% FOREACH id IN all_ids -%]
+#----------------------------------------------------------#
+# [% id %]
+#----------------------------------------------------------#
+if [ -d [% working_dir %]/Processing/[% id %] ]
+then
+    find [% working_dir %]/Processing/[% id %] -type f -not -name "circos.conf" -and -not -name "karyotype*" \
+        | parallel --no-run-if-empty rm
+else
+    mkdir -p [% working_dir %]/Processing/[% id %]
+fi
+
+if [ ! -d [% working_dir %]/Results/[% id %] ]
+then
+    mkdir -p [% working_dir %]/Results/[% id %]
+fi
+
+cd [% working_dir %]/Processing/[% id %]
+
+#----------------------------#
+# genome sequences
+#----------------------------#
+echo "* Recreate genome.fa"
+sleep 1;
+find [% working_dir %]/Genomes/[% id %] -type f -name "*.fa" \
+    | sort | xargs cat \
+    | perl -nl -e '/^>/ or $_ = uc; print' \
+    > genome.fa
+faops size genome.fa > chr.sizes
+
+#----------------------------#
+# Correct genomic positions
+#----------------------------#
+echo "* Get exact copies in the genome"
+sleep 1;
+
+echo "* axt2fas"
+fasops axt2fas [% working_dir %]/Pairwise/[% id %]vsselfalign/axtNet/*.axt.gz \
+    -l [% length %] -s chr.sizes -o stdout > axt.fas
+fasops separate axt.fas -o [% working_dir %]/Processing/[% id %] --nodash -s .sep.fasta
+
+echo "* Target positions"
+perl [% egaz %]/sparsemem_exact.pl -f target.sep.fasta -g genome.fa \
+    --length 500 --discard 50 -o replace.target.tsv
+fasops replace axt.fas replace.target.tsv -o axt.target.fas
+
+echo "* Query positions"
+perl [% egaz %]/sparsemem_exact.pl -f query.sep.fasta -g genome.fa \
+    --length 500 --discard 50 -o replace.query.tsv
+fasops replace axt.target.fas replace.query.tsv -o axt.correct.fas
+
+#----------------------------#
+# Coverage stats
+#----------------------------#
+echo "* Coverage stats"
+sleep 1;
+fasops covers axt.correct.fas -o axt.correct.yml
+runlist split axt.correct.yml -s .temp.yml
+runlist compare --op union target.temp.yml query.temp.yml -o axt.union.yml
+runlist stat --size chr.sizes axt.union.yml -o [% working_dir %]/Results/[% id %]/[% id %].union.csv
+
+# links by lastz-chain
+fasops links axt.correct.fas -o stdout \
+    | perl -nl -e 's/(target|query)\.//g; print;' \
+    > links.lastz.tsv
+
+# remove species names
+# remove duplicated sequences
+# remove sequences with more than 250 Ns
+fasops separate axt.correct.fas --nodash --rc -o stdout \
+    | perl -nl -e '/^>/ and s/^>(target|query)\./\>/; print;' \
+    | faops filter -u stdin stdout \
+    | faops filter -n 250 stdin stdout \
+    > axt.gl.fasta
+
+[% IF noblast -%]
+#----------------------------#
+# Lastz paralogs
+#----------------------------#
+cat axt.gl.fasta > axt.all.fasta
+[% ELSE -%]
+#----------------------------#
+# Get more paralogs
+#----------------------------#
+echo "* Get more paralogs"
+perl [% egaz %]/fasta_blastn.pl  -f axt.gl.fasta -g genome.fa -o axt.bg.blast --parallel [% parallel %]
+perl [% egaz %]/blastn_genome.pl -f axt.bg.blast -g genome.fa -o axt.bg.fasta -c 0.95 --parallel [% parallel %]
+cat axt.gl.fasta axt.bg.fasta \
+    | faops filter -u stdin stdout \
+    | faops filter -n 250 stdin stdout \
+    > axt.all.fasta
+[% END -%]
+
+#----------------------------#
+# Link paralogs
+#----------------------------#
+echo "* Link paralogs"
+sleep 1;
+perl [% egaz %]/fasta_blastn.pl   -f axt.all.fasta -g axt.all.fasta -o axt.all.blast --parallel [% parallel %]
+perl [% egaz %]/blastn_paralog.pl -f axt.all.blast -c 0.95 -o links.blast.tsv --parallel [% parallel %]
+
+#----------------------------#
+# Merge paralogs
+#----------------------------#
+echo "* Merge paralogs"
+sleep 1;
+
+rangeops merge -o links.merge.tsv -v -c 0.95 --parallel [% parallel %] \
+[% IF noblast -%]
+   links.lastz.tsv
+[% ELSE -%]
+    links.lastz.tsv links.blast.tsv
+[% END -%]
+
+rangeops sort -o links.sort.tsv \
+[% IF noblast -%]
+   links.lastz.tsv
+[% ELSE -%]
+    links.lastz.tsv links.blast.tsv
+[% END -%]
+
+rangeops clean   links.sort.tsv    -o links.clean.tsv -r links.merge.tsv
+rangeops connect links.clean.tsv   -o links.connect.tsv
+rangeops filter  links.connect.tsv -o links.filter.tsv -r 0.8
+
+cat links.filter.tsv \
+    | perl -nla -F"\t" -e 'print for @F' \
+    | runlist cover stdin -o cover.yml
+
+# fasops create links.filter.tsv
+# fasops refine
+# fasops links --best
+# fasops create links.pairwise.tsv
+
+echo "* Stats of links"
+echo "key,count" > links.count.csv
+for n in 2 3 4 5-50
+do
+    rangeops filter links.filter.tsv -n ${n} -o stdout \
+        > links.copy${n}.tsv
+
+    cat links.copy${n}.tsv \
+        | perl -nla -F"\t" -e 'print for @F' \
+        | runlist cover stdin -o copy${n}.yml
+
+    wc -l links.copy${n}.tsv \
+        | perl -nl -e '
+            @fields = grep {/\S+/} split /\s+/;
+            next unless @fields == 2;
+            next unless $fields[1] =~ /links\.([\w-]+)\.tsv/;
+            printf qq{%s,%s\n}, $1, $fields[0];
+        ' \
+        >> links.count.csv
+
+    rm links.copy${n}.tsv
+done
+
+runlist merge copy2.yml copy3.yml copy4.yml copy5-50.yml -o copy.all.yml
+runlist stat --size chr.sizes copy.all.yml --mk --all -o links.copy.csv
+cat links.copy.csv links.count.csv \
+    | perl [% egaz %]/merge_csv.pl --concat -o links.csv
+
+echo "* Coverage figure"
+runlist stat --size chr.sizes cover.yml
+perl [% egaz %]/cover_figure.pl --size chr.sizes -f cover.yml
+
+#----------------------------#
+# result
+#----------------------------#
+echo "* Results"
+sleep 1;
+
+#mv [% id %].cc.pairwise.fas         [% working_dir %]/Results/[% id %]/[% id %].pairwise.fas
+cp cover.yml        [% working_dir %]/Results/[% id %]/[% id %].cover.yml
+cp links.filter.tsv [% working_dir %]/Results/[% id %]/[% id %]..links.tsv
+mv links.csv        [% working_dir %]/Results/[% id %]/[% id %].links.csv
+mv cover.yml.csv    [% working_dir %]/Results/[% id %]/[% id %].cover.csv
+mv cover.png        [% working_dir %]/Results/[% id %]/[% id %].cover.png
+
+#----------------------------#
+# clean
+#----------------------------#
+echo "* Clean up"
+sleep 1;
+
+find [% working_dir %]/Processing/[% id %] -type f -name "*genome.fa*"   | parallel --no-run-if-empty rm
+find [% working_dir %]/Processing/[% id %] -type f -name "*gl.fasta*"    | parallel --no-run-if-empty rm
+find [% working_dir %]/Processing/[% id %] -type f -name "*.sep.fasta"   | parallel --no-run-if-empty rm
+find [% working_dir %]/Processing/[% id %] -type f -name "axt.*"         | parallel --no-run-if-empty rm
+find [% working_dir %]/Processing/[% id %] -type f -name "replace.*.tsv" | parallel --no-run-if-empty rm
+find [% working_dir %]/Processing/[% id %] -type f -name "*.temp.yml"    | parallel --no-run-if-empty rm
+find [% working_dir %]/Processing/[% id %] -type f -name "copy*.yml"     | parallel --no-run-if-empty rm
+
+[% END -%]

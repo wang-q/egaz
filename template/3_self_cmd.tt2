@@ -1,0 +1,37 @@
+#!/bin/bash
+# strain_bz_self.pl
+# perl [% stopwatch.cmd_line %]
+
+cd [% working_dir %]
+sleep 1;
+
+[% FOREACH id IN all_ids -%]
+#----------------------------------------------------------#
+# [% id %]
+#----------------------------------------------------------#
+if [ -d [% working_dir %]/Pairwise/[% id %]vsselfalign ]
+then
+    rm -fr [% working_dir %]/Pairwise/[% id %]vsselfalign
+fi
+
+#----------------------------#
+# self bz
+#----------------------------#
+perl [% egaz %]/bz.pl \
+    --is_self \
+    -s set01 -C 0 --noaxt [% IF parted %]-tp -qp[% END %] \
+    -dt [% working_dir %]/Genomes/[% id %] \
+    -dq [% working_dir %]/Genomes/[% id %] \
+    -dl [% working_dir %]/Pairwise/[% id %]vsselfalign \
+    --parallel [% parallel %]
+
+#----------------------------#
+# lpcna
+#----------------------------#
+perl [% egaz %]/lpcna.pl \
+    -dt [% working_dir %]/Genomes/[% id %] \
+    -dq [% working_dir %]/Genomes/[% id %] \
+    -dl [% working_dir %]/Pairwise/[% id %]vsselfalign \
+    --parallel [% parallel %]
+
+[% END -%]

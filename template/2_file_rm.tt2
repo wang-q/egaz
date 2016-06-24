@@ -1,0 +1,35 @@
+#!/bin/bash
+
+cd [% working_dir %]
+sleep 1;
+
+#----------------------------#
+# Masking all fasta files
+#----------------------------#
+[% FOREACH item IN data -%]
+
+for f in `find [% item.dir%] -name "*.fa"` ; do
+    rename 's/fa$/fasta/' $f ;
+done
+
+for f in `find [% item.dir%] -name "*.fasta"` ; do
+    RepeatMasker $f -xsmall --parallel [% parallel %] ;
+done
+
+for f in `find [% item.dir%] -name "*.fasta.out"` ; do
+    rmOutToGFF3.pl $f > `dirname $f`/`basename $f .fasta.out`.rm.gff;
+done
+
+for f in `find [% item.dir%] -name "*.fasta"` ; do
+    if [ -f $f.masked ];
+    then
+        rename 's/fasta.masked$/fa/' $f.masked;
+        find [% item.dir%] -type f -name "`basename $f`*" | parallel --no-run-if-empty rm;
+    else
+        rename 's/fasta$/fa/' $f;
+        echo `date` "RepeatMasker on $f failed.\n" >> RepeatMasker.log
+        find [% item.dir%] -type f -name "`basename $f`*" | parallel --no-run-if-empty rm;
+    fi;
+done;
+
+[% END %]

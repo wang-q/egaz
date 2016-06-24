@@ -1,0 +1,93 @@
+#!/bin/bash
+# perl [% stopwatch.cmd_line %]
+
+cd [% working_dir %]
+
+[% FOREACH id IN all_ids -%]
+#----------------------------------------------------------#
+# [% id %]
+#----------------------------------------------------------#
+
+#----------------------------#
+# karyotype
+#----------------------------#
+cd [% working_dir %]/Processing/[% id %]
+
+# generate karyotype files
+if [ ! -e [% working_dir %]/Processing/[% id %]/karyotype.[% id %].txt ]
+then
+    echo "==> Create deafult karyotype"
+    perl -anl -e '$i++; print qq{chr - $F[0] $F[0] 0 $F[1] chr$i}' \
+        [% working_dir %]/Genomes/[% id %]/chr.sizes \
+        > karyotype.[% id %].txt
+fi
+
+# spaces among chromosomes
+if [ -e [% working_dir %]/Genomes/[% id %]/chr.sizes ]
+then
+    if [[ $(perl -n -e '$l++; END{print qq{$l\n}}' [% working_dir %]/Genomes/[% id %]/chr.sizes ) > 1 ]]
+    then
+        echo "==> Multiple chromosomes"
+        perl -nlpi -e 's/    default = 0r/    default = 0.005r/;' [% working_dir %]/Processing/[% id %]/circos.conf
+        perl -nlpi -e 's/show_label     = no/show_label     = yes/;' [% working_dir %]/Processing/[% id %]/circos.conf
+    fi
+fi
+
+# chromosome units
+if [ -e [% working_dir %]/Genomes/[% id %]/chr.sizes ]
+then
+    SIZE=$(perl -an -F'\t' -e '$s += $F[1]; END{print qq{$s\n}}' [% working_dir %]/Genomes/[% id %]/chr.sizes )
+    echo "==> Genome size ${SIZE}"
+    if [ ${SIZE} -ge 1000000000 ]
+    then
+        echo "* Set chromosome unit to 1 Mbp"
+        perl -nlpi -e 's/chromosomes_units = 1000/chromosomes_units = 100000/;' [% working_dir %]/Processing/[% id %]/circos.conf
+    elif [ ${SIZE} -ge 100000000 ]
+    then
+        echo "* Set chromosome unit to 100 kbp"
+        perl -nlpi -e 's/chromosomes_units = 1000/chromosomes_units = 100000/;' [% working_dir %]/Processing/[% id %]/circos.conf
+    elif [ ${SIZE} -ge 10000000 ]
+    then
+        echo "* Set chromosome unit to 10 kbp"
+        perl -nlpi -e 's/chromosomes_units = 1000/chromosomes_units = 10000/;' [% working_dir %]/Processing/[% id %]/circos.conf
+    else
+        echo "* Keep chromosome unit as 1 kbp"
+    fi
+fi
+
+#----------------------------#
+# gff to highlight
+#----------------------------#
+# coding and other features
+perl -anl -e '
+    /^#/ and next;
+    $F[0] =~ s/\.\d+//;
+    $color = q{};
+    $F[2] eq q{CDS} and $color = q{chr9};
+    $F[2] eq q{ncRNA} and $color = q{dark2-8-qual-1};
+    $F[2] eq q{rRNA} and $color = q{dark2-8-qual-2};
+    $F[2] eq q{tRNA} and $color = q{dark2-8-qual-3};
+    $F[2] eq q{tmRNA} and $color = q{dark2-8-qual-4};
+    $color and ($F[4] - $F[3] > 49) and print qq{$F[0] $F[3] $F[4] fill_color=$color};
+    ' \
+    [% working_dir %]/Genomes/[% id %]/*.gff \
+    > highlight.features.[% id %].txt
+
+# repeats
+perl -anl -e '
+    /^#/ and next;
+    $F[0] =~ s/\.\d+//;
+    $color = q{};
+    $F[2] eq q{region} and $F[8] =~ /mobile_element|Transposon/i and $color = q{chr15};
+    $F[2] =~ /repeat/ and $F[8] !~ /RNA/ and $color = q{chr15};
+    $color and ($F[4] - $F[3] > 49) and print qq{$F[0] $F[3] $F[4] fill_color=$color};
+    ' \
+    [% working_dir %]/Genomes/[% id %]/*.gff \
+    > highlight.repeats.[% id %].txt
+
+#----------------------------#
+# run circos
+#----------------------------#
+circos -noparanoid -conf circos.conf
+
+[% END -%]

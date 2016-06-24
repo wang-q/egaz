@@ -5,14 +5,14 @@
 ### Prepare sequences
 
 ```bash
-mkdir -p ~/Scripts/egas/data
-cp -R ~/data/alignment/example/scer/Genomes/S288c ~/Scripts/egas/data/
+mkdir -p ~/data/alignment/example/S288c_self
+cp -R ~/data/alignment/example/scer/Genomes/S288c ~/data/alignment/example/S288c_self
 ```
 
 ### self alignment
 
 ```bash
-cd ~/Scripts/egas/data
+cd ~/data/alignment/example/S288c_self
 
 if [ -d S288cvsselfalign ]
 then
@@ -35,7 +35,7 @@ perl ~/Scripts/egaz/lpcna.pl --parallel 8 \
 ###  blast and merge
 
 ```bash
-cd ~/Scripts/egas/data
+cd ~/data/alignment/example/S288c_self
 
 if [ ! -d S288c_proc ]
 then
@@ -47,7 +47,7 @@ then
     mkdir S288c_result
 fi
 
-cd ~/Scripts/egas/data/S288c_proc
+cd ~/data/alignment/example/S288c_self/S288c_proc
 
 # genome
 find ../S288c -type f -name "*.fa" \
@@ -150,7 +150,7 @@ perl ~/Scripts/egas/cover_figure.pl --size chr.sizes -f cover.yml
 ### result & clean
 
 ```bash
-cd ~/Scripts/egas/data/S288c_proc
+cd ~/data/alignment/example/S288c_selfS288c_proc
 
 cp cover.yml        ../S288c_result/S288c.cover.yml
 cp links.filter.tsv ../S288c_result/S288c.links.tsv
@@ -168,42 +168,37 @@ find . -type f -name "*.temp.yml" | xargs rm
 find . -type f -name "copy*.yml" | xargs rm
 ```
 
-## Use `strain_bz_self.pl`
+## Use `self_batch.pl`
 
 ```bash
-mkdir -p ~/data/self_alignment
-cp -R ~/data/alignment/example/scer/Genomes/S288c ~/data/self_alignment
+mkdir -p ~/data/alignment/example/self_batch
+cp -R ~/data/alignment/example/scer/Genomes/S288c ~/data/alignment/example/self_batch
 
-cd ~/data/self_alignment
+cd ~/data/alignment/example/self_batch
 
 perl ~/Scripts/withncbi/taxon/strain_info.pl \
-    --file   yeast_ncbi.csv \
-    --simple \
-    --id     559292         \
-    --id     285006         \
-    --id     307796         \
-    --id     226125         \
-    --name   226125=Spar
+    --file   yeast_taxon.csv \
+    --id    559292 \
+    --name 559292=S288c
 
-perl ~/Scripts/withncbi/taxon/strain_bz_self.pl \
-    --file ~/data/self_alignment/yeast_ncbi.csv \
-    --working_dir ~/data/self_alignment \
-    --seq_dir ~/data/self_alignment \
+perl ~/Scripts/egaz/self_batch.pl \
+    -c ~/data/alignment/example/self_batch/yeast_taxon.csv \
+    --working_dir ~/data/alignment/example/self_batch \
+    --seq_dir ~/data/alignment/example/self_batch \
     --length 1000  \
-    --use_name \
     --norm \
     --name yeast \
     --parallel 8 \
     -t S288c
 
-cd ~/data/self_alignment/yeast/
-sh ~/data/self_alignment/yeast/1_real_chr.sh
-sh ~/data/self_alignment/yeast/3_self_cmd.sh
-time sh ~/data/self_alignment/yeast/4_proc_cmd.sh
+cd ~/data/alignment/example/self_batch
+bash yeast/1_real_chr.sh
+bash yeast/3_self_cmd.sh
+bash yeast/4_proc_cmd.sh
 # real	1m8.817s
 # user	2m39.879s
 # sys	1m18.005s
-sh ~/data/self_alignment/yeast/5_circos_cmd.sh
-sh ~/data/self_alignment/yeast/6_feature_cmd.sh
+bash yeast/5_circos_cmd.sh
+bash yeast/6_feature_cmd.sh
 
 ```

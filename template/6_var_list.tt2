@@ -1,0 +1,22 @@
+#!/bin/bash
+# perl [% stopwatch.cmd_line %]
+
+cd [% working_dir %]
+sleep 1;
+
+if [ -d [% working_dir %]/[% multi_name %]_vcf ]; then
+    rm -fr [% working_dir %]/[% multi_name %]_vcf;
+fi;
+
+mkdir -p [% working_dir %]/[% multi_name %]_vcf
+
+#----------------------------#
+# var_list
+#----------------------------#
+find [% working_dir %]/[% multi_name %]_refined -type f -name "*.fas" -or -name "*.fas.gz" \
+    | parallel --no-run-if-empty basename {} \
+    | parallel --no-run-if-empty -j [% parallel %] \
+        perl [% egaz %]/fas2vcf.pl \
+            -s [% working_dir %]/Genomes/[% target %]/chr.sizes \
+            -i [% working_dir %]/[% multi_name %]_refined/{} \
+            -o [% working_dir %]/[% multi_name %]_vcf/{}.vcf

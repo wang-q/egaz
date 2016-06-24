@@ -1,0 +1,42 @@
+#!/bin/bash
+# perl [% stopwatch.cmd_line %]
+
+if [ ! -d [% working_dir %]/Stats ]; then
+    mkdir -p [% working_dir %]/Stats;
+fi;
+
+cd [% working_dir %]/Stats
+sleep 1;
+
+#----------------------------#
+# Create anno.yml
+#----------------------------#
+perl [% aligndb %]/util/gff2anno.pl \
+    --type CDS --remove \
+    [% working_dir %]/Genomes/[% target %]/*.gff \
+    > [% working_dir %]/Stats/cds.yml
+
+perl [% aligndb %]/util/gff2anno.pl \
+    --remove \
+    [% working_dir %]/Genomes/[% target %]/*.rm.gff \
+    > [% working_dir %]/Stats/repeat.yml
+
+runlist merge \
+    [% working_dir %]/Stats/repeat.yml \
+    [% working_dir %]/Stats/cds.yml \
+    -o [% working_dir %]/Stats/anno.yml
+rm [% working_dir %]/Stats/repeat.yml [% working_dir %]/Stats/cds.yml
+
+#----------------------------#
+# multi_way_batch
+#----------------------------#
+perl [% aligndb %]/util/multi_way_batch.pl \
+    -d [% multi_name %] \
+    -da [% working_dir %]/[% multi_name %]_refined \
+    -a [% working_dir %]/Stats/anno.yml \
+[% IF outgroup -%]
+    --outgroup \
+[% END -%]
+    -chr [% working_dir %]/chr_length.csv \
+    -lt [% length %] --parallel [% parallel %] --batch 5 \
+    --run 1,2,5,10,21,30-32,40-42,44

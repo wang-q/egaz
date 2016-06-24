@@ -1,0 +1,20 @@
+#!/bin/bash
+# strain_bz.pl
+# perl [% stopwatch.cmd_line %]
+
+cd [% working_dir %]
+sleep 1;
+
+#----------------------------#
+# z_batch
+#----------------------------#
+[% FOREACH q IN queries -%]
+perl [% egaz %]/z_batch.pl \
+    -dt [% working_dir %]/Genomes/[% target %] \
+    -dq [% working_dir %]/Genomes/[% q %] \
+    -dw [% working_dir %]/Pairwise \
+    -r 2-4 \
+    --clean \
+    --parallel [% parallel %]
+
+[% END -%]

@@ -1,0 +1,124 @@
+#!/bin/bash
+# perl [% stopwatch.cmd_line %]
+
+cd [% working_dir %]
+sleep 1;
+
+#----------------------------#
+# Clean previous directories
+#----------------------------#
+if [ -d [% working_dir %]/[% multi_name %]_mz ]; then
+    rm -fr [% working_dir %]/[% multi_name %]_mz;
+fi;
+mkdir -p [% working_dir %]/[% multi_name %]_mz;
+
+if [ -d [% working_dir %]/[% multi_name %]_fasta ]; then
+    rm -fr [% working_dir %]/[% multi_name %]_fasta;
+fi;
+mkdir -p [% working_dir %]/[% multi_name %]_fasta;
+
+if [ -d [% working_dir %]/[% multi_name %]_refined ]; then
+    rm -fr [% working_dir %]/[% multi_name %]_refined;
+fi;
+mkdir -p [% working_dir %]/[% multi_name %]_refined;
+
+if [ -d [% working_dir %]/[% multi_name %]_phylo ]; then
+    rm -fr [% working_dir %]/[% multi_name %]_phylo;
+fi;
+mkdir -p [% working_dir %]/[% multi_name %]_phylo;
+
+#----------------------------#
+# mz
+#----------------------------#
+echo "==> Run multiz"
+[% IF phylo_tree -%]
+perl [% egaz %]/mz.pl \
+    [% FOREACH id IN queries -%]
+    -d [% working_dir %]/Pairwise/[% target %]vs[% id %] \
+    [% END -%]
+    --tree [% phylo_tree %] \
+    --out [% working_dir %]/[% multi_name %]_mz \
+    -p [% parallel %]
+[% ELSE %]
+if [ -f [% working_dir %]/[% multi_name %]_rawphylo/[% multi_name %].nwk ]
+then
+    perl [% egaz %]/mz.pl \
+        [% FOREACH id IN queries -%]
+        -d [% working_dir %]/Pairwise/[% target %]vs[% id %] \
+        [% END -%]
+        --tree [% working_dir %]/[% multi_name %]_rawphylo/[% multi_name %].nwk \
+        --out [% working_dir %]/[% multi_name %]_mz \
+        -p [% parallel %]
+else
+    perl [% egaz %]/mz.pl \
+        [% FOREACH id IN queries -%]
+        -d [% working_dir %]/Pairwise/[% target %]vs[% id %] \
+        [% END -%]
+        --tree [% working_dir %]/fake_tree.nwk \
+        --out [% working_dir %]/[% multi_name %]_mz \
+        -p [% parallel %]
+fi
+[% END -%]
+
+find [% working_dir %]/[% multi_name %]_mz -type f -name "*.maf" | parallel --no-run-if-empty -j [% parallel %] gzip
+
+#----------------------------#
+# maf2fas
+#----------------------------#
+echo "==> Convert maf to fas"
+find [% working_dir %]/[% multi_name %]_mz -name "*.maf" -or -name "*.maf.gz" \
+    | parallel --no-run-if-empty -j [% parallel %] \
+        fasops maf2fas {} -o [% working_dir %]/[% multi_name %]_fasta/{/}.fas
+
+#----------------------------#
+# refine fasta
+#----------------------------#
+echo "==> Refine fasta"
+find [% working_dir %]/[% multi_name %]_fasta -name "*.fas" -or -name "*.fas.gz" \
+    | parallel --no-run-if-empty -j [% parallel %] '
+        fasops refine \
+        --msa [% msa %] --parallel [% parallel %] \
+        --quick --pad 100 --fill 100 \
+[% IF outgroup -%]
+        --outgroup \
+[% END -%]
+        {} \
+        -o [% working_dir %]/[% multi_name %]_refined/{/}
+    '
+
+find [% working_dir %]/[% multi_name %]_refined -type f -name "*.fas" | parallel -j [% parallel %] gzip
+
+#----------------------------#
+# RAxML
+#----------------------------#
+[% IF queries.size > 2 -%]
+cd [% working_dir %]/[% multi_name %]_phylo
+
+perl [% egaz %]/concat_fasta.pl \
+    -i [% working_dir %]/[% multi_name %]_refined \
+    -o [% working_dir %]/[% multi_name %]_phylo/[% multi_name %].phy \
+    --sampling --total 10_000_000 --relaxed
+
+find [% working_dir %]/[% multi_name %]_phylo -type f -name "RAxML*" | parallel --no-run-if-empty rm
+
+[% IF avx -%]
+raxmlHPC-PTHREADS-AVX -T [% IF parallel > 8 %] 8 [% ELSIF parallel > 3 %] [% parallel - 1 %] [% ELSE %] 2 [% END %] \
+    -f a -m GTRGAMMA -p $(openssl rand 3 | od -DAn) -N 100 -x $(openssl rand 3 | od -DAn) \
+[% IF outgroup -%]
+    -o [% outgroup %] \
+[% END -%]
+    --no-bfgs -n [% multi_name %] -s [% working_dir %]/[% multi_name %]_phylo/[% multi_name %].phy
+[% ELSE -%]
+raxmlHPC-PTHREADS -T [% IF parallel > 8 %] 8 [% ELSIF parallel > 3 %] [% parallel - 1 %] [% ELSE %] 2 [% END %] \
+    -f a -m GTRGAMMA -p $(openssl rand 3 | od -DAn) -N 100 -x $(openssl rand 3 | od -DAn) \
+[% IF outgroup -%]
+    -o [% outgroup %] \
+[% END -%]
+    --no-bfgs -n [% multi_name %] -s [% working_dir %]/[% multi_name %]_phylo/[% multi_name %].phy
+[% END -%]
+
+cp [% working_dir %]/[% multi_name %]_phylo/RAxML_bipartitions.* [% working_dir %]/[% multi_name %]_phylo/[% multi_name %].nwk
+
+Rscript [% egaz %]/plot_tree.R -i [% working_dir %]/[% multi_name %]_phylo/[% multi_name %].nwk
+
+[% END -%]

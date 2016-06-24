@@ -71,7 +71,7 @@ GetOptions(
     'msa=s'           => \( my $msa         = 'mafft' ),
     'norm'            => \my $norm,
     'nostat'          => \my $nostat,
-    'parallel=i'      => \( my $parallel    = 8 ),
+    'parallel=i'      => \( my $parallel    = 4 ),
 ) or Getopt::Long::HelpMessage(1);
 
 #----------------------------------------------------------#
@@ -148,7 +148,6 @@ if ($seq_dir) {
 
 {
     my $tt = Template->new( ABSOLUTE => 1, );
-    my $text;
     my $sh_name;
 
     #----------------------------#

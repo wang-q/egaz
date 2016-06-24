@@ -7,15 +7,10 @@ use Getopt::Long;
 use FindBin;
 use YAML::Syck;
 
-use DBI;
-use Text::CSV_XS;
-use DateTime::Format::Natural;
-use List::MoreUtils qw(any all uniq);
-use Template;
-
+use File::Find::Rule;
 use IPC::Cmd qw(can_run);
 use Path::Tiny;
-use File::Find::Rule;
+use Template;
 
 use AlignDB::Stopwatch;
 

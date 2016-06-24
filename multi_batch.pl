@@ -7,15 +7,10 @@ use Getopt::Long;
 use FindBin;
 use YAML::Syck;
 
-use DBI;
-use Text::CSV_XS;
-use DateTime::Format::Natural;
-use List::MoreUtils qw(any all uniq);
-use Template;
-
+use File::Find::Rule;
 use IPC::Cmd qw(can_run);
 use Path::Tiny;
-use File::Find::Rule;
+use Template;
 
 use AlignDB::Stopwatch;
 
@@ -292,7 +287,8 @@ if ( !defined $phylo_tree ) {
         $sh_name = "7_multi_db_only.sh";
         print "Create $sh_name\n";
         $tt->process(
-            path( $FindBin::RealBin, "template", "7_multi_db_only.tt2" )->stringify,
+            path( $FindBin::RealBin, "template", "7_multi_db_only.tt2" )
+                ->stringify,
             {   stopwatch   => $stopwatch,
                 parallel    => $parallel,
                 working_dir => $working_dir,

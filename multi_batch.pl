@@ -627,7 +627,7 @@ raxmlHPC-PTHREADS -T [% IF parallel > 8 %] 8 [% ELSIF parallel > 3 %] [% paralle
 
 cp [% working_dir %]/[% multi_name %]_phylo/RAxML_bipartitions.* [% working_dir %]/[% multi_name %]_phylo/[% multi_name %].nwk
 
-Rscript [% egaz %]/util/plot_tree.R -i [% working_dir %]/[% multi_name %]_phylo/[% multi_name %].nwk
+Rscript [% egaz %]/plot_tree.R -i [% working_dir %]/[% multi_name %]_phylo/[% multi_name %].nwk
 
 [% END -%]
 

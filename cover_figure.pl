@@ -3,10 +3,10 @@ use strict;
 use warnings;
 use autodie;
 
-use Getopt::Long qw(HelpMessage);
+use Getopt::Long;
 use Config::Tiny;
 use FindBin;
-use YAML::Syck qw(Dump Load DumpFile LoadFile);
+use YAML::Syck;
 
 use Bio::Seq;
 use Bio::Graphics::Panel;
@@ -18,9 +18,7 @@ use List::Util qw(max sum0);
 
 use AlignDB::IntSpan;
 use AlignDB::Stopwatch;
-
-use lib "$FindBin::RealBin/lib";
-use MyUtil qw(read_sizes);
+use App::RL::Common;
 
 #----------------------------------------------------------#
 # GetOpt section
@@ -42,16 +40,16 @@ alignDB_graph.pl - Generate graph for chromosome coverage in alignDB
 =cut
 
 GetOptions(
-    'help|?'   => sub { HelpMessage(0) },
+    'help|?'   => sub { Getopt::Long::HelpMessage(0) },
     'file|f=s' => \my $yml_file,
     'size|s=s' => \my $size_file,
     'name|n=s' => \( my $name ),
-    'class=s'  => \( my $CLASS = "GD" ),
-    'width=i'  => \( my $width = 1000 ),
-) or HelpMessage(1);
+    'class=s' => \( my $CLASS = "GD" ),
+    'width=i' => \( my $width = 1000 ),
+) or Getopt::Long::HelpMessage(1);
 
-if (! defined $name) {
-    $name = path($yml_file)->basename(".yaml", ".yml");                  
+if ( !defined $name ) {
+    $name = path($yml_file)->basename( ".yaml", ".yml" );
 }
 
 #----------------------------------------------------------#
@@ -66,7 +64,7 @@ my $yml = LoadFile($yml_file);
 # Start
 #----------------------------------------------------------#
 
-my $length_of        = read_sizes($size_file);
+my $length_of        = App::RL::Common::read_sizes($size_file);
 my $length_of_genome = sum0( values %{$length_of} );
 my @chrs             = keys %{$length_of};
 
@@ -157,7 +155,9 @@ my $ftr = 'Bio::Graphics::Feature';
 
         {    # text
             my $title
-                = "$chr_name: " . format_bytes($chr_length) . " bp" . " | Coverage: $coverage%";
+                = "$chr_name: "
+                . format_bytes($chr_length) . " bp"
+                . " | Coverage: $coverage%";
             $panel->add_track(
                 $chr_segment,
                 -glyph        => 'text_in_box',

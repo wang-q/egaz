@@ -1,6 +1,5 @@
 #!/usr/bin/env Rscript
 library(getopt)
-library(stringr)
 library(ape)
 
 spec = matrix(
@@ -42,7 +41,7 @@ if (is.null(opt$infile)) {
 }
 
 if (is.null(opt$outfile)) {
-    opt$outfile = str_c(opt$infile, ".pdf")
+    opt$outfile = paste(opt$infile, ".pdf", sep = "")
 }
 
 plot_tree <- function(tree) {

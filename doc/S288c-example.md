@@ -32,7 +32,7 @@ perl ~/Scripts/egaz/lpcna.pl --parallel 8 \
     -dl S288cvsselfalign
 ```
 
-###  blast and merge
+###  blast
 
 ```bash
 cd ~/data/alignment/example/S288c_self
@@ -60,11 +60,11 @@ faops size genome.fa > chr.sizes
 fasops axt2fas ../S288cvsselfalign/axtNet/*.axt.gz -l 1000 -s chr.sizes -o stdout > axt.fas
 fasops separate axt.fas --nodash -s .sep.fasta
 
-perl ~/Scripts/egas/sparsemem_exact.pl -f target.sep.fasta -g genome.fa \
+perl ~/Scripts/egaz/sparsemem_exact.pl -f target.sep.fasta -g genome.fa \
     --length 500 -o replace.target.tsv
 fasops replace axt.fas replace.target.tsv -o axt.target.fas
 
-perl ~/Scripts/egas/sparsemem_exact.pl -f query.sep.fasta -g genome.fa \
+perl ~/Scripts/egaz/sparsemem_exact.pl -f query.sep.fasta -g genome.fa \
     --length 500 -o replace.query.tsv
 fasops replace axt.target.fas replace.query.tsv -o axt.correct.fas
 
@@ -87,8 +87,8 @@ fasops separate axt.correct.fas --nodash --rc -o stdout \
     > axt.gl.fasta
 
 # Get more paralogs
-perl ~/Scripts/egas/fasta_blastn.pl  -f axt.gl.fasta -g genome.fa -o axt.bg.blast
-perl ~/Scripts/egas/blastn_genome.pl -f axt.bg.blast -g genome.fa -o axt.bg.fasta -c 0.95
+perl ~/Scripts/egaz/fasta_blastn.pl -f axt.gl.fasta -g genome.fa -o axt.bg.blast
+perl ~/Scripts/egaz/blastn_genome.pl -f axt.bg.blast -g genome.fa -o axt.bg.fasta -c 0.95
 
 cat axt.gl.fasta axt.bg.fasta \
     | faops filter -u stdin stdout \
@@ -96,29 +96,44 @@ cat axt.gl.fasta axt.bg.fasta \
     > axt.all.fasta
 
 # link paralogs
-perl ~/Scripts/egas/fasta_blastn.pl   -f axt.all.fasta -g axt.all.fasta -o axt.all.blast
-perl ~/Scripts/egas/blastn_paralog.pl -f axt.all.blast -c 0.95 -o links.blast.tsv
+perl ~/Scripts/egaz/fasta_blastn.pl   -f axt.all.fasta -g axt.all.fasta -o axt.all.blast
+perl ~/Scripts/egaz/blastn_paralog.pl -f axt.all.blast -c 0.95 -o links.blast.tsv
+```
+
+### merge
+
+```bash
+cd ~/data/alignment/example/S288c_self/S288c_proc
 
 # merge
-rangeops merge   links.lastz.tsv    links.blast.tsv -o links.merge.tsv -c 0.95 -p 8
-rangeops sort    links.lastz.tsv    links.blast.tsv -o links.sort.tsv
-rangeops clean   links.sort.tsv  -r links.merge.tsv -o links.clean.tsv
-rangeops connect links.clean.tsv                    -o links.connect.tsv
-rangeops filter  links.connect.tsv                  -o links.filter.tsv -r 0.8
+rangeops sort -o links.sort.tsv \
+    links.lastz.tsv links.blast.tsv
 
-cat links.filter.tsv \
+rangeops clean   links.sort.tsv         -o links.sort.clean.tsv
+rangeops merge   links.sort.clean.tsv   -o links.merge.tsv       -c 0.95 -p 8
+rangeops clean   links.sort.clean.tsv   -o links.clean.tsv       -r links.merge.tsv --bundle 500
+rangeops connect links.clean.tsv        -o links.connect.tsv     -r 0.9
+rangeops filter  links.connect.tsv      -o links.filter.tsv      -r 0.8
+
+# recreate links
+rangeops create links.filter.tsv    -o multi.temp.fas       -g genome.fa
+fasops   refine multi.temp.fas      -o multi.refine.fas     --msa mafft -p 8 --chop 10
+fasops   links  multi.refine.fas    -o stdout \
+    | rangeops sort stdin -o links.refine.tsv
+
+fasops   links  multi.refine.fas    -o stdout     --best \
+    | rangeops sort stdin -o links.best.tsv
+rangeops create links.best.tsv      -o pair.temp.fas    -g genome.fa
+fasops   refine pair.temp.fas       -o pair.refine.fas  --msa mafft -p 8
+
+cat links.refine.tsv \
     | perl -nla -F"\t" -e 'print for @F' \
     | runlist cover stdin -o cover.yml
-
-# fasops create links.filter.tsv
-# fasops refine
-# fasops links --best
-# fasops create links.pairwise.tsv
 
 echo "key,count" > links.count.csv
 for n in 2 3 4 5-50
 do
-    rangeops filter links.filter.tsv -n ${n} -o stdout \
+    rangeops filter links.refine.tsv -n ${n} -o stdout \
         > links.copy${n}.tsv
 
     cat links.copy${n}.tsv \
@@ -144,7 +159,7 @@ cat links.copy.csv links.count.csv \
     | perl ~/Scripts/withncbi/util/merge_csv.pl --concat -o links.csv
 
 runlist stat --size chr.sizes cover.yml
-perl ~/Scripts/egas/cover_figure.pl --size chr.sizes -f cover.yml
+perl ~/Scripts/egaz/cover_figure.pl --size chr.sizes -f cover.yml
 ```
 
 ### result & clean
@@ -153,10 +168,12 @@ perl ~/Scripts/egas/cover_figure.pl --size chr.sizes -f cover.yml
 cd ~/data/alignment/example/S288c_selfS288c_proc
 
 cp cover.yml        ../S288c_result/S288c.cover.yml
-cp links.filter.tsv ../S288c_result/S288c.links.tsv
+cp links.refine.tsv ../S288c_result/S288c.links.tsv
 mv links.csv        ../S288c_result/S288c.links.csv
 mv cover.yml.csv    ../S288c_result/S288c.cover.csv
 mv cover.png        ../S288c_result/S288c.cover.png
+mv multi.refine.fas ../S288c_result/S288c.multi.fas
+mv pair.refine.fas  ../S288c_result/S288c.pair.fas
 
 # clean
 find . -type f -name "*genome.fa*" | xargs rm
@@ -165,6 +182,7 @@ find . -type f -name "*.sep.fasta" | xargs rm
 find . -type f -name "axt.*" | xargs rm
 find . -type f -name "replace.*.tsv" | xargs rm
 find . -type f -name "*.temp.yml" | xargs rm
+find . -type f -name "*.temp.fas" | xargs rm
 find . -type f -name "copy*.yml" | xargs rm
 ```
 
@@ -195,9 +213,9 @@ cd ~/data/alignment/example/self_batch
 bash yeast/1_real_chr.sh
 bash yeast/3_self_cmd.sh
 bash yeast/4_proc_cmd.sh
-# real	1m8.817s
-# user	2m39.879s
-# sys	1m18.005s
+# real 1m8.817s
+# user 2m39.879s
+# sys 1m18.005s
 bash yeast/5_circos_cmd.sh
 bash yeast/6_feature_cmd.sh
 

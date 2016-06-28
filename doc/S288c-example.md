@@ -60,10 +60,12 @@ faops size genome.fa > chr.sizes
 fasops axt2fas ../S288cvsselfalign/axtNet/*.axt.gz -l 1000 -s chr.sizes -o stdout > axt.fas
 fasops separate axt.fas --nodash -s .sep.fasta
 
+echo "* Target positions"
 perl ~/Scripts/egaz/sparsemem_exact.pl -f target.sep.fasta -g genome.fa \
     --length 500 -o replace.target.tsv
 fasops replace axt.fas replace.target.tsv -o axt.target.fas
 
+echo "* Query positions"
 perl ~/Scripts/egaz/sparsemem_exact.pl -f query.sep.fasta -g genome.fa \
     --length 500 -o replace.query.tsv
 fasops replace axt.target.fas replace.query.tsv -o axt.correct.fas
@@ -80,6 +82,8 @@ fasops links axt.correct.fas -o stdout \
     > links.lastz.tsv
 
 # remove species names
+# remove duplicated sequences
+# remove sequences with more than 250 Ns
 fasops separate axt.correct.fas --nodash --rc -o stdout \
     | perl -nl -e '/^>/ and s/^>(target|query)\./\>/; print;' \
     | faops filter -u stdin stdout \
@@ -96,6 +100,7 @@ cat axt.gl.fasta axt.bg.fasta \
     > axt.all.fasta
 
 # link paralogs
+echo "* Link paralogs"
 perl ~/Scripts/egaz/fasta_blastn.pl   -f axt.all.fasta -g axt.all.fasta -o axt.all.blast
 perl ~/Scripts/egaz/blastn_paralog.pl -f axt.all.blast -c 0.95 -o links.blast.tsv
 ```
@@ -130,6 +135,7 @@ cat links.refine.tsv \
     | perl -nla -F"\t" -e 'print for @F' \
     | runlist cover stdin -o cover.yml
 
+echo "* Stats of links"
 echo "key,count" > links.count.csv
 for n in 2 3 4 5-50
 do
@@ -158,6 +164,7 @@ runlist stat --size chr.sizes copy.all.yml --mk --all -o links.copy.csv
 cat links.copy.csv links.count.csv \
     | perl ~/Scripts/withncbi/util/merge_csv.pl --concat -o links.csv
 
+echo "* Coverage figure"
 runlist stat --size chr.sizes cover.yml
 perl ~/Scripts/egaz/cover_figure.pl --size chr.sizes -f cover.yml
 ```

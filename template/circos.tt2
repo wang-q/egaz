@@ -1,5 +1,5 @@
 <image>
-dir*   = [% working_dir %]/Results/[% id %]
+dir*   = [% working_dir %]/Circos/[% id %]
 file*  = [% id %].circos.png
 background*     = white
 
@@ -23,7 +23,7 @@ chromosomes_display_default = yes
 <links>
 
 <link>
-file          = [% id %].cc.link4.txt
+file          = [% id %].link4.txt
 radius        = 0.88r
 bezier_radius = 0.2r
 color         = purple
@@ -34,7 +34,7 @@ stroke_thickness = 2
 </link>
 
 <link>
-file          = [% id %].cc.link3.txt
+file          = [% id %].link3.txt
 radius        = 0.88r
 bezier_radius = 0.1r
 color         = dgreen
@@ -45,7 +45,7 @@ stroke_thickness = 2
 </link>
 
 <link>
-file          = [% id %].cc.link2.txt
+file          = [% id %].link2.txt
 radius        = 0.88r
 bezier_radius = 0r
 color         = dorange
@@ -72,7 +72,7 @@ r1 = 0.98r
 </highlight>
 
 <highlight>
-file = [% id %].cc.linkN.txt
+file = [% id %].linkN.txt
 r0 = 0.89r
 r1 = 0.92r
 stroke_thickness = 2

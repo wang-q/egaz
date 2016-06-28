@@ -82,6 +82,7 @@ $stopwatch->start_message("Writing strains summary...");
     $working_dir = $working_dir->stringify;
     print " " x 4, "Working dir is $working_dir\n";
 
+    path( $working_dir, 'Circos' )->mkpath;
     path( $working_dir, 'Genomes' )->mkpath;
     path( $working_dir, 'Pairwise' )->mkpath;
     path( $working_dir, 'Processing' )->mkpath;
@@ -220,7 +221,7 @@ if ($seq_dir) {
                 name_str    => $name_str,
                 id          => $id,
             },
-            path( $working_dir, 'Processing', "${id}", "circos.conf" )
+            path( $working_dir, 'Circos', "${id}", "circos.conf" )
                 ->stringify
         ) or die Template->error;
     }

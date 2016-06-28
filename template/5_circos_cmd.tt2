@@ -11,10 +11,10 @@ cd [% working_dir %]
 #----------------------------#
 # karyotype
 #----------------------------#
-cd [% working_dir %]/Processing/[% id %]
+cd [% working_dir %]/Circos/[% id %]
 
 # generate karyotype files
-if [ ! -e [% working_dir %]/Processing/[% id %]/karyotype.[% id %].txt ]
+if [ ! -e [% working_dir %]/Circos/[% id %]/karyotype.[% id %].txt ]
 then
     echo "==> Create deafult karyotype"
     perl -anl -e '$i++; print qq{chr - $F[0] $F[0] 0 $F[1] chr$i}' \
@@ -28,8 +28,8 @@ then
     if [[ $(perl -n -e '$l++; END{print qq{$l\n}}' [% working_dir %]/Genomes/[% id %]/chr.sizes ) > 1 ]]
     then
         echo "==> Multiple chromosomes"
-        perl -nlpi -e 's/    default = 0r/    default = 0.005r/;' [% working_dir %]/Processing/[% id %]/circos.conf
-        perl -nlpi -e 's/show_label     = no/show_label     = yes/;' [% working_dir %]/Processing/[% id %]/circos.conf
+        perl -nlpi -e 's/    default = 0r/    default = 0.005r/;' [% working_dir %]/Circos/[% id %]/circos.conf
+        perl -nlpi -e 's/show_label     = no/show_label     = yes/;' [% working_dir %]/Circos/[% id %]/circos.conf
     fi
 fi
 
@@ -40,24 +40,26 @@ then
     echo "==> Genome size ${SIZE}"
     if [ ${SIZE} -ge 1000000000 ]
     then
-        echo "* Set chromosome unit to 1 Mbp"
-        perl -nlpi -e 's/chromosomes_units = 1000/chromosomes_units = 100000/;' [% working_dir %]/Processing/[% id %]/circos.conf
+        echo "    * Set chromosome unit to 1 Mbp"
+        perl -nlpi -e 's/chromosomes_units = 1000/chromosomes_units = 100000/;' [% working_dir %]/Circos/[% id %]/circos.conf
     elif [ ${SIZE} -ge 100000000 ]
     then
-        echo "* Set chromosome unit to 100 kbp"
-        perl -nlpi -e 's/chromosomes_units = 1000/chromosomes_units = 100000/;' [% working_dir %]/Processing/[% id %]/circos.conf
+        echo "    * Set chromosome unit to 100 kbp"
+        perl -nlpi -e 's/chromosomes_units = 1000/chromosomes_units = 100000/;' [% working_dir %]/Circos/[% id %]/circos.conf
     elif [ ${SIZE} -ge 10000000 ]
     then
-        echo "* Set chromosome unit to 10 kbp"
-        perl -nlpi -e 's/chromosomes_units = 1000/chromosomes_units = 10000/;' [% working_dir %]/Processing/[% id %]/circos.conf
+        echo "    * Set chromosome unit to 10 kbp"
+        perl -nlpi -e 's/chromosomes_units = 1000/chromosomes_units = 10000/;' [% working_dir %]/Circos/[% id %]/circos.conf
     else
-        echo "* Keep chromosome unit as 1 kbp"
+        echo "    * Keep chromosome unit as 1 kbp"
     fi
 fi
 
 #----------------------------#
 # gff to highlight
 #----------------------------#
+echo "==> Create highlight files"
+
 # coding and other features
 perl -anl -e '
     /^#/ and next;
@@ -84,6 +86,26 @@ perl -anl -e '
     ' \
     [% working_dir %]/Genomes/[% id %]/*.gff \
     > highlight.repeats.[% id %].txt
+
+#----------------------------#
+# links of paralog ranges
+#----------------------------#
+echo "==> Create link files"
+
+for n in 2 3 4 5-50
+do
+    rangeops filter [% working_dir %]/Results/[% id %]/[% id %].links.tsv -n ${n} -o stdout \
+        > links.copy${n}.tsv
+
+    if [ "${n}" == "5-50" ];
+    then
+        rangeops circos links.copy${n}.tsv -o [% id %].linkN.txt --highlight
+    else
+        rangeops circos links.copy${n}.tsv -o [% id %].link${n}.txt
+    fi
+
+    rm links.copy${n}.tsv
+done
 
 #----------------------------#
 # run circos

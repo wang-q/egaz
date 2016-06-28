@@ -73,7 +73,16 @@ do
     else
         # .txt file is empty
         # create empty runlists from chr.sizes
-        perl -ane'BEGIN { print qq{---\n} }; print qq{$F[0]: "-"\n}; END {print qq{\n}};' [% working_dir %]/Genomes/[% id %]/chr.sizes > feature.$ftr.[% id %].yml;
+        perl -an -e '
+            BEGIN {
+                print qq{---\n}
+            };
+            print qq{$F[0]: "-"\n};
+            END {
+                print qq{\n}
+            };
+        ' [% working_dir %]/Genomes/[% id %]/chr.sizes \
+        > feature.$ftr.[% id %].yml;
     fi;
     runlist stat --size chr.sizes feature.$ftr.[% id %].yml;
 done
@@ -86,7 +95,7 @@ done >> [% working_dir %]/Results/[% id %]/[% id %].feature.csv
 
 for ftr in coding repeats ncRNA rRNA tRNA
 do
-    runlist compare --op intersect --mk [% id %].cc.runlist.yml feature.$ftr.[% id %].yml -o [% id %].cc.runlist.$ftr.yml
+    runlist compare --op intersect --mk copy.yml feature.$ftr.[% id %].yml -o [% id %].cc.runlist.$ftr.yml
 done
 
 for ftr in coding repeats ncRNA rRNA tRNA
@@ -97,7 +106,11 @@ done
 echo "feature,copy,name,length,size,coverage" > [% working_dir %]/Results/[% id %]/[% id %].feature.copies.csv
 for ftr in coding repeats ncRNA rRNA tRNA
 do
-    FTR=$ftr perl -nl -e '/^key/ and next; /\,all\,/ or next; print qq{$ENV{FTR},$_};' [% id %].cc.runlist.$ftr.yml.csv;
+    FTR=$ftr perl -nl -e '
+        /^key/ and next;
+        /\,all\,/ or next;
+        print qq{$ENV{FTR},$_};
+    ' [% id %].cc.runlist.$ftr.yml.csv;
 done >> [% working_dir %]/Results/[% id %]/[% id %].feature.copies.csv
 
 for ftr in coding repeats ncRNA rRNA tRNA

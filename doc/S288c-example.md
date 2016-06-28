@@ -225,5 +225,6 @@ bash yeast/4_proc_cmd.sh
 # sys 1m18.005s
 bash yeast/5_circos_cmd.sh
 bash yeast/6_feature_cmd.sh
+bash yeast/7_pair_stat.sh
 
 ```

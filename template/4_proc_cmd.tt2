@@ -10,7 +10,7 @@ sleep 1;
 #----------------------------------------------------------#
 if [ -d [% working_dir %]/Processing/[% id %] ]
 then
-    find [% working_dir %]/Processing/[% id %] -type f -not -name "circos.conf" -and -not -name "karyotype*" \
+    find [% working_dir %]/Processing/[% id %] -type f \
         | parallel --no-run-if-empty rm
 else
     mkdir -p [% working_dir %]/Processing/[% id %]
@@ -132,7 +132,7 @@ fasops   links  multi.refine.fas    -o stdout \
 
 fasops   links  multi.refine.fas    -o stdout     --best \
     | rangeops sort stdin -o links.best.tsv
-rangeops create links.best.tsv      -o pair.temp.fas    -g genome.fa
+rangeops create links.best.tsv      -o pair.temp.fas    -g genome.fa --name [% id %]
 fasops   refine pair.temp.fas       -o pair.refine.fas  --msa mafft -p 8
 
 cat links.refine.tsv \
@@ -148,7 +148,7 @@ do
 
     cat links.copy${n}.tsv \
         | perl -nla -F"\t" -e 'print for @F' \
-        | runlist cover stdin -o copy${n}.yml
+        | runlist cover stdin -o copy${n}.temp.yml
 
     wc -l links.copy${n}.tsv \
         | perl -nl -e '
@@ -162,11 +162,11 @@ do
     rm links.copy${n}.tsv
 done
 
-runlist merge copy2.yml copy3.yml copy4.yml copy5-50.yml -o copy.all.yml
-runlist stat --size chr.sizes copy.all.yml --mk --all -o links.copy.csv
+runlist merge copy2.temp.yml copy3.temp.yml copy4.temp.yml copy5-50.temp.yml -o copy.yml
+runlist stat --size chr.sizes copy.yml --mk --all -o links.copy.csv
 
 cat links.copy.csv links.count.csv \
-    | perl [% egaz %]/merge_csv.pl --concat -o links.csv
+    | perl [% egaz %]/merge_csv.pl --concat -o copy.csv
 
 echo "* Coverage figure"
 runlist stat --size chr.sizes cover.yml
@@ -179,9 +179,10 @@ echo "* Results"
 sleep 1;
 
 cp cover.yml        [% working_dir %]/Results/[% id %]/[% id %].cover.yml
-cp links.refine.tsv [% working_dir %]/Results/[% id %]/[% id %].links.tsv
-mv links.csv        [% working_dir %]/Results/[% id %]/[% id %].links.csv
+cp copy.yml         [% working_dir %]/Results/[% id %]/[% id %].copy.yml
 mv cover.yml.csv    [% working_dir %]/Results/[% id %]/[% id %].cover.csv
+mv copy.csv         [% working_dir %]/Results/[% id %]/[% id %].copy.csv
+cp links.refine.tsv [% working_dir %]/Results/[% id %]/[% id %].links.tsv
 mv cover.png        [% working_dir %]/Results/[% id %]/[% id %].cover.png
 mv multi.refine.fas [% working_dir %]/Results/[% id %]/[% id %].multi.fas
 mv pair.refine.fas  [% working_dir %]/Results/[% id %]/[% id %].pair.fas
@@ -199,6 +200,5 @@ find [% working_dir %]/Processing/[% id %] -type f -name "axt.*"         | paral
 find [% working_dir %]/Processing/[% id %] -type f -name "replace.*.tsv" | parallel --no-run-if-empty rm
 find [% working_dir %]/Processing/[% id %] -type f -name "*.temp.yml"    | parallel --no-run-if-empty rm
 find [% working_dir %]/Processing/[% id %] -type f -name "*.temp.fas"    | parallel --no-run-if-empty rm
-find [% working_dir %]/Processing/[% id %] -type f -name "copy*.yml"     | parallel --no-run-if-empty rm
 
 [% END -%]

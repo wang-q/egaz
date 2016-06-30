@@ -3,19 +3,6 @@
 
 cd [% working_dir %]
 
-[% FOREACH id IN all_ids -%]
-#----------------------------------------------------------#
-# [% id %]
-#----------------------------------------------------------#
-# gen_alignDB
-perl [% aligndb %]/util/multi_way_batch.pl \
-    -d [% id %]vs[% id %] \
-    -da [% working_dir %]/Results/[% id %]/[% id %].pair.fas \
-    -chr [% working_dir %]/chr_length.csv \
-    -lt 1000 --parallel [% parallel %] --run 1-5,21,40
-
-[% END -%]
-
 #----------------------------------------------------------#
 # [% name_str %]
 #----------------------------------------------------------#

@@ -19,7 +19,7 @@ fi
 #----------------------------#
 perl [% egaz %]/bz.pl \
     --is_self \
-    -s set01 -C 0 --noaxt [% IF parted %]-tp -qp[% END %] \
+    -s set01 -C 0 --noaxt [% IF parted %]--t_parted --q_parted[% END %] \
     -dt [% working_dir %]/Genomes/[% id %] \
     -dq [% working_dir %]/Genomes/[% id %] \
     -dl [% working_dir %]/Pairwise/[% id %]vsselfalign \

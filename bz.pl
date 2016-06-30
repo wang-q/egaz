@@ -7,9 +7,9 @@ use Getopt::Long;
 use FindBin;
 use YAML::Syck;
 
-use MCE;
-
+use App::RL::Common;
 use File::Find::Rule;
+use MCE;
 use Path::Tiny;
 use String::Compare;
 use Time::Duration;

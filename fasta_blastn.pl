@@ -67,7 +67,7 @@ path($output)->remove;
 #----------------------------------------------------------#
 # Run
 #----------------------------------------------------------#
-$stopwatch->start_message("Start...");
+$stopwatch->start_message;
 
 $stopwatch->block_message("Build blast db");
 exec_cmd("makeblastdb -dbtype nucl -in $genome");

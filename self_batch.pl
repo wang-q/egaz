@@ -40,6 +40,7 @@ self_batch.pl - Full procedure for self genome alignments.
         --length            INT     Minimal length of paralogous fragments
         --name_str      -n  STR     Default is []
         --parted                    Sequences are partitioned
+        --jar                       Use jrange and jrunlist
         --noblast                   Don't blast against genomes
         --msa               STR     Aligning program for refine. Default is [mafft]
         --norm                      RepeatMasker has been done.
@@ -62,6 +63,7 @@ GetOptions(
     'length=i'        => \( my $length      = 1000 ),
     'name_str|n=s'    => \( my $name_str    = "working" ),
     'parted'          => \my $parted,
+    'jar'             => \my $jar,
     'noblast'         => \my $noblast,
     'msa=s'           => \( my $msa         = 'mafft' ),
     'norm'            => \my $norm,
@@ -201,6 +203,7 @@ if ($seq_dir) {
             working_dir => $working_dir,
             egaz        => $egaz,
             msa         => $msa,
+            jar         => $jar,
             noblast     => $noblast,
             name_str    => $name_str,
             all_ids     => [ $target, @queries ],
@@ -221,8 +224,7 @@ if ($seq_dir) {
                 name_str    => $name_str,
                 id          => $id,
             },
-            path( $working_dir, 'Circos', "${id}", "circos.conf" )
-                ->stringify
+            path( $working_dir, 'Circos', "${id}", "circos.conf" )->stringify
         ) or die Template->error;
     }
 

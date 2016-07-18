@@ -26,7 +26,7 @@ cd [% working_dir %]/Processing/[% id %]
 #----------------------------#
 # genome sequences
 #----------------------------#
-echo "* Recreate genome.fa"
+echo "==> Recreate genome.fa"
 sleep 1;
 find [% working_dir %]/Genomes/[% id %] -type f -name "*.fa" \
     | sort | xargs cat \
@@ -37,20 +37,20 @@ faops size genome.fa > chr.sizes
 #----------------------------#
 # Get exact copies in the genome
 #----------------------------#
-echo "* Get exact copies in the genome"
+echo "==> Get exact copies in the genome"
 sleep 1;
 
-echo "* axt2fas"
+echo "    * axt2fas"
 fasops axt2fas [% working_dir %]/Pairwise/[% id %]vsselfalign/axtNet/*.axt.gz \
     -l [% length %] -s chr.sizes -o stdout > axt.fas
 fasops separate axt.fas -o [% working_dir %]/Processing/[% id %] --nodash -s .sep.fasta
 
-echo "* Target positions"
+echo "    * Target positions"
 perl [% egaz %]/sparsemem_exact.pl -f target.sep.fasta -g genome.fa \
     --length 500 --discard 50 -o replace.target.tsv
 fasops replace axt.fas replace.target.tsv -o axt.target.fas
 
-echo "* Query positions"
+echo "    * Query positions"
 perl [% egaz %]/sparsemem_exact.pl -f query.sep.fasta -g genome.fa \
     --length 500 --discard 50 -o replace.query.tsv
 fasops replace axt.target.fas replace.query.tsv -o axt.correct.fas
@@ -58,7 +58,7 @@ fasops replace axt.target.fas replace.query.tsv -o axt.correct.fas
 #----------------------------#
 # Coverage stats
 #----------------------------#
-echo "* Coverage stats"
+echo "==> Coverage stats"
 sleep 1;
 fasops covers axt.correct.fas -o axt.correct.yml
 runlist split axt.correct.yml -s .temp.yml
@@ -88,7 +88,7 @@ cat axt.gl.fasta > axt.all.fasta
 #----------------------------#
 # Get more paralogs
 #----------------------------#
-echo "* Get more paralogs"
+echo "==> Get more paralogs"
 perl [% egaz %]/fasta_blastn.pl  -f axt.gl.fasta -g genome.fa -o axt.bg.blast --parallel [% parallel %]
 perl [% egaz %]/blastn_genome.pl -f axt.bg.blast -g genome.fa -o axt.bg.fasta -c 0.95 --parallel [% parallel %]
 cat axt.gl.fasta axt.bg.fasta \
@@ -100,7 +100,7 @@ cat axt.gl.fasta axt.bg.fasta \
 #----------------------------#
 # Link paralogs
 #----------------------------#
-echo "* Link paralogs"
+echo "==> Link paralogs"
 sleep 1;
 perl [% egaz %]/fasta_blastn.pl   -f axt.all.fasta -g axt.all.fasta -o axt.all.blast --parallel [% parallel %]
 perl [% egaz %]/blastn_paralog.pl -f axt.all.blast -c 0.95 -o links.blast.tsv --parallel [% parallel %]
@@ -108,9 +108,10 @@ perl [% egaz %]/blastn_paralog.pl -f axt.all.blast -c 0.95 -o links.blast.tsv --
 #----------------------------#
 # Merge paralogs
 #----------------------------#
-echo "* Merge paralogs"
+echo "==> Merge paralogs"
 sleep 1;
 
+echo "    * Sort links"
 rangeops sort -o links.sort.tsv \
 [% IF noblast -%]
    links.lastz.tsv
@@ -118,19 +119,29 @@ rangeops sort -o links.sort.tsv \
     links.lastz.tsv links.blast.tsv
 [% END -%]
 
+echo "    * Clean links"
+[% IF jar -%]
+java -Xmx4g -jar [% egaz %]/jar/jrange.jar clean   links.sort.tsv         -o links.sort.clean.tsv
+java -Xmx4g -jar [% egaz %]/jar/jrange.jar merge   links.sort.clean.tsv   -o links.merge.tsv       -c 0.95
+java -Xmx4g -jar [% egaz %]/jar/jrange.jar clean   links.sort.clean.tsv   -o links.clean.tsv       -r links.merge.tsv --bundle 500
+[% ELSE -%]
 rangeops clean   links.sort.tsv         -o links.sort.clean.tsv
 rangeops merge   links.sort.clean.tsv   -o links.merge.tsv       -c 0.95 --parallel [% parallel %]
 rangeops clean   links.sort.clean.tsv   -o links.clean.tsv       -r links.merge.tsv --bundle 500
+[% END -%]
+
+echo "    * Connect links"
 rangeops connect links.clean.tsv        -o links.connect.tsv     -r 0.9
 rangeops filter  links.connect.tsv      -o links.filter.tsv      -r 0.8
 
-# recreate links
+echo "    * recreate links"
 rangeops create links.filter.tsv    -o multi.temp.fas       -g genome.fa
 fasops   refine multi.temp.fas      -o multi.refine.fas     --msa mafft -p 8 --chop 10
 fasops   links  multi.refine.fas    -o stdout \
     | rangeops sort stdin -o stdout \
     | rangeops filter stdin -n 2-50 -o links.refine.tsv
 
+echo "    * pairwise links"
 fasops   links  multi.refine.fas    -o stdout     --best \
     | rangeops sort stdin -o links.best.tsv
 rangeops create links.best.tsv      -o pair.temp.fas    -g genome.fa --name [% id %]
@@ -140,7 +151,7 @@ cat links.refine.tsv \
     | perl -nla -F"\t" -e 'print for @F' \
     | runlist cover stdin -o cover.yml
 
-echo "* Stats of links"
+echo "==> Stats of links"
 echo "key,count" > links.count.csv
 for n in 2 3 4 5-50
 do
@@ -169,14 +180,14 @@ runlist stat --size chr.sizes copy.yml --mk --all -o links.copy.csv
 cat links.copy.csv links.count.csv \
     | perl [% egaz %]/merge_csv.pl --concat -o copy.csv
 
-echo "* Coverage figure"
+echo "==> Coverage figure"
 runlist stat --size chr.sizes cover.yml
 perl [% egaz %]/cover_figure.pl --size chr.sizes -f cover.yml
 
 #----------------------------#
 # result
 #----------------------------#
-echo "* Results"
+echo "==> Results"
 sleep 1;
 
 cp cover.yml        [% working_dir %]/Results/[% id %]/[% id %].cover.yml
@@ -191,7 +202,7 @@ mv pair.refine.fas  [% working_dir %]/Results/[% id %]/[% id %].pair.fas
 #----------------------------#
 # clean
 #----------------------------#
-echo "* Clean up"
+echo "==> Clean up"
 sleep 1;
 
 find [% working_dir %]/Processing/[% id %] -type f -name "*genome.fa*"   | parallel --no-run-if-empty rm

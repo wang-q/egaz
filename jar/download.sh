@@ -9,5 +9,5 @@ wget http://repo1.maven.org/maven2/com/github/egateam/jrunlist/0.1.4/jrunlist-0.
     -O jrunlist.jar
 
 echo "==> jrange"
-wget -N http://repo1.maven.org/maven2/com/github/egateam/jrange/0.0.2/jrange-0.0.2-jar-with-dependencies.jar \
+wget -N http://repo1.maven.org/maven2/com/github/egateam/jrange/0.0.3/jrange-0.0.3-jar-with-dependencies.jar \
     -O jrange.jar

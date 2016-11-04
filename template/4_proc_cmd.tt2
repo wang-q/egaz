@@ -199,6 +199,11 @@ mv cover.png        [% working_dir %]/Results/[% id %]/[% id %].cover.png
 mv multi.refine.fas [% working_dir %]/Results/[% id %]/[% id %].multi.fas
 mv pair.refine.fas  [% working_dir %]/Results/[% id %]/[% id %].pair.fas
 
+[% IF noclean -%]
+#----------------------------#
+# SKIP clean
+#----------------------------#
+[% ELSE -%]
 #----------------------------#
 # clean
 #----------------------------#
@@ -212,5 +217,7 @@ find [% working_dir %]/Processing/[% id %] -type f -name "axt.*"         | paral
 find [% working_dir %]/Processing/[% id %] -type f -name "replace.*.tsv" | parallel --no-run-if-empty rm
 find [% working_dir %]/Processing/[% id %] -type f -name "*.temp.yml"    | parallel --no-run-if-empty rm
 find [% working_dir %]/Processing/[% id %] -type f -name "*.temp.fas"    | parallel --no-run-if-empty rm
+
+[% END -%]
 
 [% END -%]

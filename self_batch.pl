@@ -45,7 +45,7 @@ self_batch.pl - Full procedure for self genome alignments.
         --msa               STR     Aligning program for refine. Default is [mafft]
         --norm                      RepeatMasker has been done.
         --nostat                    Don't do stat stuffs
-        --norawphylo                Skip rawphylo
+        --noclean                   Keep intermediate files
         --parallel          INT     number of child processes
 
 =cut
@@ -68,6 +68,7 @@ GetOptions(
     'msa=s'           => \( my $msa         = 'mafft' ),
     'norm'            => \my $norm,
     'nostat'          => \my $nostat,
+    'noclean'         => \my $noclean,
     'parallel=i'      => \( my $parallel    = 4 ),
 ) or Getopt::Long::HelpMessage(1);
 
@@ -209,6 +210,7 @@ if ($seq_dir) {
             all_ids     => [ $target, @queries ],
             data        => \@data,
             length      => $length,
+            noclean     => $noclean,
         },
         path( $working_dir, $sh_name )->stringify
     ) or die Template->error;

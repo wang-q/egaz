@@ -11,6 +11,7 @@ use IO::Zlib;
 use Path::Tiny;
 
 use AlignDB::Stopwatch;
+use App::RL::Common;
 
 #----------------------------------------------------------#
 # GetOpt section
@@ -102,5 +103,15 @@ my $length_of = App::RL::Common::read_sizes($size_file);
 $stopwatch->block_message( "Process finished.", "duration" );
 
 exit;
+
+sub exec_cmd {
+    my $cmd = shift;
+
+    print "\n", "-" x 12, "CMD", "-" x 15, "\n";
+    print $cmd , "\n";
+    print "-" x 30, "\n";
+
+    system $cmd;
+}
 
 __END__

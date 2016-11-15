@@ -1,6 +1,8 @@
 # Build alignments of several strains of *Saccharomyces cerevisiae*
 
-As example for egaz and alignDB. Extract from Scer_wgs of [`OPs-download.md`](https://github.com/wang-q/withncbi/blob/master/pop/OPs-download.md) and [`OPs-align.md`](https://github.com/wang-q/withncbi/blob/master/pop/OPs-align.md).
+As example for egaz and alignDB. Extract from Scer_wgs of
+[`OPs-download.md`](https://github.com/wang-q/withncbi/blob/master/pop/OPs-download.md) and
+[`OPs-align.md`](https://github.com/wang-q/withncbi/blob/master/pop/OPs-align.md).
 
 ## Download
 

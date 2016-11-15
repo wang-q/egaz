@@ -9,7 +9,7 @@ sleep 1;
 [% FOREACH item IN data -%]
 
 for f in `find [% item.dir%] -name "*.fa"` ; do
-    rename 's/fa$/fasta/' $f ;
+    mv $f `dirname $f`/`basename $f .fa`.fasta;
 done
 
 for f in `find [% item.dir%] -name "*.fasta"` ; do
@@ -23,10 +23,10 @@ done
 for f in `find [% item.dir%] -name "*.fasta"` ; do
     if [ -f $f.masked ];
     then
-        rename 's/fasta.masked$/fa/' $f.masked;
+        mv $f.masked `dirname $f`/`basename $f.masked .fasta.masked`.fa;
         find [% item.dir%] -type f -name "`basename $f`*" | parallel --no-run-if-empty rm;
     else
-        rename 's/fasta$/fa/' $f;
+        mv $f `dirname $f`/`basename $f .fasta`.fa;
         echo `date` "RepeatMasker on $f failed.\n" >> RepeatMasker.log
         find [% item.dir%] -type f -name "`basename $f`*" | parallel --no-run-if-empty rm;
     fi;

@@ -25,12 +25,13 @@ runlist merge \
     [% working_dir %]/Stats/repeat.yml \
     [% working_dir %]/Stats/cds.yml \
     -o [% working_dir %]/Stats/anno.yml
+
 rm [% working_dir %]/Stats/repeat.yml [% working_dir %]/Stats/cds.yml
 
 #----------------------------#
-# multi_way_batch
+# alignDB.pl
 #----------------------------#
-perl [% aligndb %]/util/multi_way_batch.pl \
+perl [% aligndb %]/alignDB.pl \
     -d [% multi_name %] \
     -da [% working_dir %]/[% multi_name %]_refined \
     -a [% working_dir %]/Stats/anno.yml \

@@ -7,7 +7,7 @@ cd [% working_dir %]
 # [% name_str %]
 #----------------------------------------------------------#
 # init db
-perl [% aligndb %]/util/multi_way_batch.pl \
+perl [% aligndb %]/alignDB.pl \
     -d [% name_str %]_paralog \
     -chr [% working_dir %]/chr_length.csv \
     -r 1
@@ -19,7 +19,7 @@ perl [% aligndb %]/util/multi_way_batch.pl \
 [% FOREACH id IN all_ids -%]
 # [% id %]
 # gen_alignDB to existing database
-perl [% aligndb %]/util/multi_way_batch.pl \
+perl [% aligndb %]/alignDB.pl \
     -d [% name_str %]_paralog \
     -da [% working_dir %]/Results/[% id %]/[% id %].pair.fas \
     -lt 1000 --parallel [% parallel %] --run 2
@@ -29,7 +29,7 @@ perl [% aligndb %]/util/multi_way_batch.pl \
 #----------------------------#
 # rest steps
 #----------------------------#
-perl [% aligndb %]/util/two_way_batch.pl \
+perl [% aligndb %]/alignDB.pl \
     -d [% name_str %]_paralog \
-    -lt 1000 --parallel [% parallel %] --batch 5 \
-    --run 5,10,21,30-32,40-42,44
+    --parallel [% parallel %] --batch 5 \
+    --run 5,10,21,30-32,40,42,44

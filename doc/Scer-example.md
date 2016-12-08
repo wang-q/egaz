@@ -1,4 +1,4 @@
-# Alignments of *S. cerevisiae* strains
+# Several ways to build genomic alignments of two *S. cerevisiae* strains, S288c and RM11_1a
 
 ## Detailed steps
 
@@ -130,7 +130,6 @@ perl ~/Scripts/alignDB/util/check_header.pl \
 ```
 
 ### Partitions
-
 
 ```bash
 cd ~/Scripts/egaz/data

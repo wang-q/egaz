@@ -126,6 +126,8 @@ Stats on pairwise and multiple alignments are minimal.
 
 ## Raw alignments
 
+Build by joining two-way alignments.
+
 ```bash
 mkdir -p ~/data/alignment/example/raw
 cd ~/data/alignment/example/raw
@@ -194,4 +196,17 @@ runlist stat \
     --size ~/data/alignment/example/scer/Genomes/S288c/chr.sizes \
     --all -o stdout \
     mz.yml
+```
+
+## fas from axt files
+
+```bash
+mkdir -p ~/data/alignment/example/S288cvsRM11_1a
+cd ~/data/alignment/example/S288cvsRM11_1a
+
+find ~/data/alignment/example/scer/Pairwise/S288cvsRM11_1a -name "*.axt.gz" \
+    | parallel --no-run-if-empty -j 4 \
+        fasops axt2fas {} -o {/}.fas \
+            -l 1000 -t S288c -q RM11_1a \
+            -s ~/data/alignment/example/scer/Genomes/RM11_1a/chr.sizes
 ```

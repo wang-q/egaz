@@ -21,8 +21,8 @@ perl [% aligndb %]/alignDB.pl \
 # gen_alignDB to existing database
 perl [% aligndb %]/alignDB.pl \
     -d [% name_str %]_paralog \
-    -da [% working_dir %]/Results/[% id %]/[% id %].pair.fas \
-    -lt 1000 --parallel [% parallel %] --run 2
+    --da [% working_dir %]/Results/[% id %]/[% id %].pair.fas \
+    --lt 1000 --parallel [% parallel %] --run 2
 
 [% END -%]
 

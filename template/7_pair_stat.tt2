@@ -9,7 +9,7 @@ cd [% working_dir %]
 # init db
 perl [% aligndb %]/alignDB.pl \
     -d [% name_str %]_paralog \
-    -chr [% working_dir %]/chr_length.csv \
+    --chr [% working_dir %]/chr_length.csv \
     -r 1
 
 #----------------------------#

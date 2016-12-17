@@ -33,7 +33,7 @@ rm [% working_dir %]/Stats/repeat.yml [% working_dir %]/Stats/cds.yml
 #----------------------------#
 perl [% aligndb %]/alignDB.pl \
     -d [% multi_name %] \
-    -da [% working_dir %]/[% multi_name %]_refined \
+    --da [% working_dir %]/[% multi_name %]_refined \
     -a [% working_dir %]/Stats/anno.yml \
 [% IF outgroup -%]
     --outgroup \

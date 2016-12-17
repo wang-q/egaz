@@ -103,7 +103,7 @@ zcat [% working_dir %]/[% multi_name %]_refined/*.fas.gz | fasops concat \
     stdin \
     [% working_dir %]/[% multi_name %]_phylo/names.list \
     -o [% working_dir %]/[% multi_name %]_phylo/[% multi_name %].phy \
-    --sampling --total 10_000_000 --relaxed
+    --total 10_000_000 --relaxed
 
 find [% working_dir %]/[% multi_name %]_phylo -type f -name "RAxML*" | parallel --no-run-if-empty rm
 

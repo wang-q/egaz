@@ -4,7 +4,6 @@ use warnings;
 use autodie;
 
 use Getopt::Long;
-use FindBin;
 use YAML::Syck;
 
 use Path::Tiny;

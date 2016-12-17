@@ -145,11 +145,7 @@ else {
         # the filter, the children are not even considered.
         # usage:
         #    netFilter in.net(s)
-        my $cmd
-            = "netFilter" . " -syn"
-            . " $files[0]"
-            . " | netSplit stdin"
-            . " $dir_synnet";
+        my $cmd = "netFilter" . " -syn" . " $files[0]" . " | netSplit stdin" . " $dir_synnet";
         exec_cmd($cmd);
     }
 
@@ -177,9 +173,9 @@ else {
     my $worker = sub {
         my ( $self, $chunk_ref, $chunk_id ) = @_;
 
-        my $file   = $chunk_ref->[0];
-        my $base   = path($file)->basename(".net");
-        my $output = path( $dir_mafsynnet, "$base.synNet.maf.gz" )->stringify;
+        my $file       = $chunk_ref->[0];
+        my $base       = path($file)->basename(".net");
+        my $output     = path( $dir_mafsynnet, "$base.synNet.maf.gz" )->stringify;
         my $chain_file = path( $dir_chain, "$base.chain" )->stringify;
 
         print "Run netToAxt axtSort axtToMaf...\n";

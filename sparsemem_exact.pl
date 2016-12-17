@@ -4,8 +4,7 @@ use warnings;
 use autodie;
 
 use Getopt::Long;
-use FindBin;
-use YAML::Syck;
+use JSON;
 
 use Path::Tiny;
 use Tie::IxHash;
@@ -83,7 +82,9 @@ $stopwatch->start_message("Get locations...");
 #----------------------------------------------------------#
 $stopwatch->block_message("Generate sparsemem reports");
 
-my $mem_result = run_sparsemem( $file, $genome, $match_length );
+#@type Path::Tiny
+my $mem_result = Path::Tiny->tempfile;
+run_sparsemem( $mem_result, $file, $genome, $match_length );
 
 $stopwatch->block_message("Parse sparsemem");
 tie my %match_of, "Tie::IxHash";
@@ -170,16 +171,23 @@ for my $ori_name ( keys %locations ) {
         path($output)->append( join( "\t", $ori_name, @matches ) );
         path($output)->append("\n");
     }
+    else {
+        # make sure $output exists
+        path($output)->touch;
+    }
 }
 
+# YAML::Syck can't Dump Tie::IxHash
 if ($debug) {
-    $stopwatch->block_message("Dump mem_exact.yml");
-    YAML::Syck::DumpFile(
-        'mem_exact.yml',
-        {   mem_result => $mem_result,
-            info       => \%match_of,
-            locations  => \%locations
-        }
+    $stopwatch->block_message("Dump mem_exact.json");
+    path("mem_exact.json")->spew(
+        JSON::to_json(
+            {   mem_result => $mem_result->slurp,
+                match_of   => \%match_of,
+                locations  => \%locations
+            },
+            { utf8 => 1, pretty => 1 },
+        )
     );
 }
 
@@ -188,27 +196,26 @@ $stopwatch->end_message;
 exit;
 
 sub run_sparsemem {
-    my $file   = shift;
-    my $genome = shift;
-    my $length = shift || 20;
 
-    my $result = Path::Tiny->tempfile;
+    #@type Path::Tiny
+    my $file_result = shift;
+    my $file_query  = shift;
+    my $file_genome = shift;
+    my $length      = shift || 20;
 
     my $cmd = sprintf "sparsemem -maxmatch -F -l %d -b -n -k 3 -threads 3 %s %s > %s",
         $length,
-        $genome,
-        $file,
-        $result->stringify;
+        $file_genome,
+        $file_query,
+        $file_result->stringify;
     system $cmd;
-
-    return $result;
 }
 
 sub get_seq_faidx {
-    my $genome   = shift;
-    my $location = shift;    # I:1-100
+    my $file_genome = shift;
+    my $location    = shift;    # I:1-100
 
-    my $cmd = sprintf "samtools faidx %s %s", $genome, $location;
+    my $cmd = sprintf "samtools faidx %s %s", $file_genome, $location;
     open my $fh_pipe, '-|', $cmd;
 
     my $seq;
@@ -224,9 +231,9 @@ sub get_seq_faidx {
 }
 
 sub get_size_faops {
-    my $file = shift;
+    my $file_query = shift;
 
-    my $cmd = sprintf "faops size %s", $file;
+    my $cmd = sprintf "faops size %s", $file_query;
     my @lines = grep {defined} split /\n/, `$cmd`;
 
     tie my %length_of, "Tie::IxHash";

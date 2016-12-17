@@ -1,19 +1,21 @@
-# Several ways to build genomic alignments of two *S. cerevisiae* strains, S288c and RM11_1a
+# Several approaches to build genomic alignments of two *S. cerevisiae* strains, S288c and RM11_1a
 
 ## Detailed steps
 
 ### Prepare sequences
 
 ```bash
-mkdir -p ~/Scripts/egaz/data
-cp -R ~/data/alignment/example/scer/Genomes/S288c ~/Scripts/egaz/data/
-cp -R ~/data/alignment/example/scer/Genomes/RM11_1a/ ~/Scripts/egaz/data/RM11
+mkdir -p ~/data/alignment/egaz
+cd ~/data/alignment/egaz
 
-cat ~/Scripts/egaz/data/S288c/*.fa > ~/Scripts/egaz/data/S288c.fa
-cat ~/Scripts/egaz/data/RM11/*.fa > ~/Scripts/egaz/data/RM11.fa
+cp -R ~/data/alignment/example/scer/Genomes/S288c   .
+cp -R ~/data/alignment/example/scer/Genomes/RM11_1a .
+
+cat ./S288c/*.fa   > S288c.fa
+cat ./RM11_1a/*.fa > RM11_1a.fa
 
 faops size S288c.fa > S288c.chr.sizes
-faops size RM11.fa > RM11.chr.sizes
+faops size RM11_1a.fa > RM11_1a.chr.sizes
 ```
 
 ### Vanilla lastz
@@ -21,8 +23,8 @@ faops size RM11.fa > RM11.chr.sizes
 First sequence in target file will be aligned against all sequences in query file.
 
 ```bash
-cd ~/Scripts/egaz/data
-lastz S288c/I.fa RM11.fa > I.lav
+cd ~/data/alignment/egaz
+lastz S288c/I.fa RM11_1a.fa > I.lav
 ```
 
 ### With `bz.pl` 
@@ -32,31 +34,23 @@ Use lastz's chaining.
 `bz.pl` has build-in lav2axt.
 
 ```bash
-cd ~/Scripts/egaz/data
+cd ~/data/alignment/egaz
 
 perl ~/Scripts/egaz/bz.pl \
     -p 8 \
     -dt S288c \
-    -dq RM11 \
-    -dl S288cvsRM11_bz
+    -dq RM11_1a \
+    -dl S288cvsRM11_1a_bz
 ```
 
 Check axt positions.
 
 ```bash
-fasops axt2fas S288cvsRM11_bz/*.axt -l 1000 -t S288c -q RM11 -s RM11.chr.sizes \
-    -o stdout > axt.bz.fas
+fasops axt2fas S288cvsRM11_1a_bz/*.axt -l 1000 -t S288c -q RM11_1a -s RM11_1a.chr.sizes \
+    -o axt.bz.fas
 
-perl ~/Scripts/alignDB/util/check_header.pl \
-    -i axt.bz.fas \
-    -n S288c \
-    -g S288c.fa \
-    --detail
-perl ~/Scripts/alignDB/util/check_header.pl \
-    -i axt.bz.fas \
-    -n RM11 \
-    -g RM11.fa \
-    --detail
+fasops check axt.bz.fas S288c.fa -n S288c -o stdout | grep -v "OK"
+fasops check axt.bz.fas RM11_1a.fa -n RM11_1a -o stdout | grep -v "OK"
 ```
 
 ### With `bz.pl` and `lpcna.pl` 
@@ -64,43 +58,35 @@ perl ~/Scripts/alignDB/util/check_header.pl \
 Use UCSC chaining.
 
 ```bash
-cd ~/Scripts/egaz/data
+cd ~/data/alignment/egaz
 
 perl ~/Scripts/egaz/bz.pl \
     -p 8 -C 0 --noaxt \
     -dt S288c \
-    -dq RM11 \
-    -dl S288cvsRM11_ucsc
+    -dq RM11_1a \
+    -dl S288cvsRM11_1a_ucsc
 
 perl ~/Scripts/egaz/lpcna.pl \
     -p 8 \
     -dt S288c \
-    -dq RM11 \
-    -dl S288cvsRM11_ucsc
+    -dq RM11_1a \
+    -dl S288cvsRM11_1a_ucsc
 ```
 
 Check axt positions.
 
 ```bash
-fasops axt2fas S288cvsRM11_ucsc/axtNet/*.axt.gz -l 1000 -t S288c -q RM11 -s RM11.chr.sizes \
-    -o stdout > axt.ucsc.fas
+fasops axt2fas S288cvsRM11_1a_ucsc/axtNet/*.axt.gz -l 1000 -t S288c -q RM11_1a -s RM11_1a.chr.sizes \
+    -o axt.ucsc.fas
 
-perl ~/Scripts/alignDB/util/check_header.pl \
-    -i axt.ucsc.fas \
-    -n S288c \
-    -g S288c.fa \
-    --detail
-perl ~/Scripts/alignDB/util/check_header.pl \
-    -i axt.ucsc.fas \
-    -n RM11 \
-    -g RM11.fa \
-    --detail
+fasops check axt.ucsc.fas S288c.fa -n S288c -o stdout | grep -v "OK"
+fasops check axt.ucsc.fas RM11_1a.fa -n RM11_1a -o stdout | grep -v "OK"
 ```
 
 ### Self alignment
 
 ```bash
-cd ~/Scripts/egaz/data
+cd ~/data/alignment/egaz
 
 perl ~/Scripts/egaz/bz.pl \
     --is_self \
@@ -119,48 +105,35 @@ perl ~/Scripts/egaz/lpcna.pl \
 Check axt positions.
 
 ```bash
-fasops axt2fas S288cvsselfalign/axtNet/*.axt.gz -l 1000 -t S288c -q RM11 -s S288c.chr.sizes \
-    -o stdout > axt.self.fas
+fasops axt2fas S288cvsselfalign/axtNet/*.axt.gz -l 1000 -t S288c -q S288c -s S288c.chr.sizes \
+    -o axt.self.fas
 
-perl ~/Scripts/alignDB/util/check_header.pl \
-    -i axt.self.fas \
-    -n S288c \
-    -g S288c.fa \
-    --detail
+fasops check axt.self.fas S288c.fa -n S288c -o stdout | grep -v "OK"
 ```
 
 ### Partitions
 
 ```bash
-cd ~/Scripts/egaz/data
+cd ~/data/alignment/egaz
 
-rm -fr S288c_parted RM11_parted
+rm -fr S288c_parted RM11_1a_parted
 perl ~/Scripts/egaz/part_seq.pl -i S288c -o S288c_parted --chunk 500000 --overlap 10000
-perl ~/Scripts/egaz/part_seq.pl -i RM11  -o RM11_parted  --chunk 500000 --overlap 0
+perl ~/Scripts/egaz/part_seq.pl -i RM11_1a  -o RM11_1a_parted  --chunk 500000 --overlap 0
 
-rm -fr S288cvsRM11_parted
+rm -fr S288cvsRM11_1a_parted
 perl ~/Scripts/egaz/bz.pl \
     -p 8 \
     -dt S288c_parted -tp \
-    -dq RM11_parted -qp \
-    -dl S288cvsRM11_parted
-
+    -dq RM11_1a_parted -qp \
+    -dl S288cvsRM11_1a_parted
 ```
 
 Check axt positions.
 
 ```bash
-fasops axt2fas S288cvsRM11_parted/*.axt -l 1000 -t S288c -q RM11 -s RM11.chr.sizes \
-    -o stdout > axt.parted.fas
+fasops axt2fas S288cvsRM11_1a_parted/*.axt -l 1000 -t S288c -q RM11_1a -s RM11_1a.chr.sizes \
+    -o axt.parted.fas
 
-perl ~/Scripts/alignDB/util/check_header.pl \
-    -i axt.parted.fas \
-    -n S288c \
-    -g S288c.fa \
-    --detail
-perl ~/Scripts/alignDB/util/check_header.pl \
-    -i axt.parted.fas \
-    -n RM11 \
-    -g RM11.fa \
-    --detail
+fasops check axt.parted.fas S288c.fa -n S288c -o stdout | grep -v "OK"
+fasops check axt.parted.fas RM11_1a.fa -n RM11_1a -o stdout | grep -v "OK"
 ```

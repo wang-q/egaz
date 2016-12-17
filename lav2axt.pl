@@ -79,15 +79,13 @@ for my $lav (@lavs) {
     }
 
     $s_lines[0] =~ /\s*\"?(.+?)\-?\"? \s+ (\d+) \s+ (\d+) \s+ (\d+) \s+ (\d+)/x;
-    my ( $t_file, $t_seq_start, $t_seq_stop, $t_strand, $t_contig )
-        = ( $1, $2, $3, $4, $5 );
+    my ( $t_file, $t_seq_start, $t_seq_stop, $t_strand, $t_contig ) = ( $1, $2, $3, $4, $5 );
     if ( $t_seq_start != 1 ) {
         die "Target sequence doesn't start at 1\n";
     }
 
     $s_lines[1] =~ /\s*\"?(.+?)\-?\"? \s+ (\d+) \s+ (\d+) \s+ (\d+) \s+ (\d+)/x;
-    my ( $q_file, $q_seq_start, $q_seq_stop, $q_strand, $q_contig )
-        = ( $1, $2, $3, $4, $5 );
+    my ( $q_file, $q_seq_start, $q_seq_stop, $q_strand, $q_contig ) = ( $1, $2, $3, $4, $5 );
     if ( $q_seq_start != 1 ) {
         die "Query sequence doesn't start at 1\n";
     }
@@ -109,21 +107,21 @@ for my $lav (@lavs) {
         my $seq_of = App::Fasops::Common::read_fasta($t_file);
         $cache{$t_file} = {
             seq_of    => $seq_of,
-            seq_names => keys %{$seq_of},
+            seq_names => [ keys %{$seq_of} ],
         };
     }
-    my $t_name = $cache{$t_file}->{seq_names}->[ $t_contig - 1 ];
-    my $t_seq  = $cache{$t_file}->{seq_of}->{$t_name};
+    my $t_name = $cache{$t_file}->{seq_names}[ $t_contig - 1 ];
+    my $t_seq  = $cache{$t_file}->{seq_of}{$t_name};
 
     if ( !exists $cache{$q_file} ) {
         my $seq_of = App::Fasops::Common::read_fasta($q_file);
         $cache{$q_file} = {
             seq_of    => $seq_of,
-            seq_names => keys %{$seq_of},
+            seq_names => [ keys %{$seq_of} ],
         };
     }
-    my $q_name = $cache{$q_file}->{seq_names}->[ $q_contig - 1 ];
-    my $q_seq  = $cache{$q_file}->{seq_of}->{$q_name};
+    my $q_name = $cache{$q_file}->{seq_names}[ $q_contig - 1 ];
+    my $q_seq  = $cache{$q_file}->{seq_of}{$q_name};
     if ($q_strand) {
         $q_seq = App::Fasops::Common::revcom($q_seq);
     }
@@ -160,11 +158,9 @@ for my $lav (@lavs) {
             my $length_target = $t_end - $t_begin + 1 + ( length $q_del );
             my $length_query  = $q_end - $q_begin + 1 + ( length $t_del );
             $alignment_target
-                .= substr( $t_seq, ( $t_begin - 1 - ( length $q_del ) ),
-                $length_target );
+                .= substr( $t_seq, ( $t_begin - 1 - ( length $q_del ) ), $length_target );
             $alignment_query
-                .= substr( $q_seq, ( $q_begin - 1 - ( length $t_del ) ),
-                $length_query );
+                .= substr( $q_seq, ( $q_begin - 1 - ( length $t_del ) ), $length_query );
             if ( ( length $alignment_query ) ne ( length $alignment_target ) ) {
                 die "Target length doesn't match query's in the alignment.\n";
             }

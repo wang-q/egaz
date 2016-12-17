@@ -94,8 +94,14 @@ find [% working_dir %]/[% multi_name %]_refined -type f -name "*.fas" | parallel
 [% IF queries.size > 2 -%]
 cd [% working_dir %]/[% multi_name %]_phylo
 
-perl [% egaz %]/concat_fasta.pl \
-    -i [% working_dir %]/[% multi_name %]_refined \
+echo [% target %] > [% working_dir %]/[% multi_name %]_phylo/names.list
+[% FOREACH q IN queries -%]
+echo [% q %] >> [% working_dir %]/[% multi_name %]_phylo/names.list
+[% END -%]
+
+zcat [% working_dir %]/[% multi_name %]_refined/*.fas.gz | fasops concat \
+    stdin \
+    [% working_dir %]/[% multi_name %]_phylo/names.list \
     -o [% working_dir %]/[% multi_name %]_phylo/[% multi_name %].phy \
     --sampling --total 10_000_000 --relaxed
 

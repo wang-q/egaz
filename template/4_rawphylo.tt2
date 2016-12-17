@@ -128,10 +128,11 @@ fasops refine \
 cd [% working_dir %]/[% multi_name %]_rawphylo
 
 [% IF queries.size > 2 -%]
-perl [% egaz%]/concat_fasta.pl \
-    -i [% working_dir %]/[% multi_name %]_raw/join.refine.fas \
+fasops concat \
+    [% working_dir %]/[% multi_name %]_raw/join.refine.fas \
+    [% working_dir %]/[% multi_name %]_raw/names.list \
     -o [% working_dir %]/[% multi_name %]_rawphylo/[% multi_name %].phy \
-    --sampling --total 10_000_000 --relaxed
+    --total 10_000_000 --relaxed
 
 [% IF avx -%]
 raxmlHPC-PTHREADS-AVX -T [% IF parallel > 8 %] 8 [% ELSIF parallel > 3 %] [% parallel - 1 %] [% ELSE %] 2 [% END %] \

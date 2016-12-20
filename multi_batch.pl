@@ -146,8 +146,8 @@ if ($seq_dir) {
         $cur_dir = $cur_dir->stringify;
 
         my @fa_files
-            = File::Find::Rule->file->name( '*.fna', '*.fa', '*.fas',
-            '*.fasta' )->in($original_dir);
+            = File::Find::Rule->file->name( '*.fna', '*.fa', '*.fas', '*.fasta' )
+            ->in($original_dir);
 
         printf " " x 8 . "Total %d fasta file(s)\n", scalar @fa_files;
 
@@ -267,8 +267,7 @@ if ( !defined $phylo_tree ) {
         path( $working_dir, $sh_name )->stringify
     ) or die Template->error;
 
-# var_list.sh
-# Fixme: The column names do not match; the column "Ace_pasteurianus_386B.NC_021991(+):63873-133498" no present in [/tmp/fas_vVWwMHt4/Ace_pasteurianus_IFO_3283_01.NC_013209.+.2789416-2790912.fas.vcf].
+    # var_list.sh
     $sh_name = "6_var_list.sh";
     print "Create $sh_name\n";
     $tt->process(
@@ -287,13 +286,13 @@ if ( !defined $phylo_tree ) {
         $sh_name = "7_multi_db_only.sh";
         print "Create $sh_name\n";
         $tt->process(
-            path( $FindBin::RealBin, "template", "7_multi_db_only.tt2" )
-                ->stringify,
+            path( $FindBin::RealBin, "template", "7_multi_db_only.tt2" )->stringify,
             {   stopwatch   => $stopwatch,
                 parallel    => $parallel,
                 working_dir => $working_dir,
                 aligndb     => $aligndb,
                 target      => $target,
+                outgroup    => $outgroup,
                 length      => $length,
                 multi_name  => $multi_name,
             },

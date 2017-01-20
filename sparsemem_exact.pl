@@ -29,7 +29,7 @@ sparsemem_exact.pl - Get exact genome locations of sequence pieces in a fasta fi
 
 =head1 SYNOPSIS
 
-    perl sparsemem_exact.pl -f <blast result file> [options]
+    perl sparsemem_exact.pl -f <fasta file> [options]
       Options:
         --help          -?          brief help message
         --file          -f  STR     query fasta file
@@ -42,9 +42,8 @@ sparsemem_exact.pl - Get exact genome locations of sequence pieces in a fasta fi
 
 =head1 REQUIREMENTS
 
-    brew tap homebrew/science
-    brew tap wang-q/tap
-    brew install sparsemem samtools
+    brew install homebrew/science/samtools
+    brew install wang-q/tap/sparsemem
 
 =cut
 

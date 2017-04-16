@@ -99,7 +99,8 @@ echo [% target %] > [% working_dir %]/[% multi_name %]_phylo/names.list
 echo [% q %] >> [% working_dir %]/[% multi_name %]_phylo/names.list
 [% END -%]
 
-zcat [% working_dir %]/[% multi_name %]_refined/*.fas.gz | fasops concat \
+gzip -d -c [% working_dir %]/[% multi_name %]_refined/*.fas.gz \
+    | fasops concat \
     stdin \
     [% working_dir %]/[% multi_name %]_phylo/names.list \
     -o [% working_dir %]/[% multi_name %]_phylo/[% multi_name %].phy \

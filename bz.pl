@@ -226,7 +226,6 @@ printf "\n----%4s .fa files for query----\n",  scalar @query_files;
                 $bz_cmd .= " $key=$value";
             }
         }
-        $bz_cmd .= " --ambiguous=iupac";
         $bz_cmd .= " > $lav_file";
         exec_cmd($bz_cmd);
         printf "\n.lav file generated. [%s]\n\n", path($lav_file)->basename;

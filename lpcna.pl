@@ -57,6 +57,7 @@ GetOptions(
     'parallel|p=i' => \( my $parallel  = 1 ),
     'linearGap=i'  => \( my $linearGap = "loose" ),
     'minScore=i'   => \( my $minScore  = "1000" ),
+    'keeptmp'      => \( my $keeptmp ),
 ) or Getopt::Long::HelpMessage(1);
 
 #----------------------------------------------------------#
@@ -254,7 +255,7 @@ for ( $dir_lav, $dir_net, $dir_axtnet ) {
         . " $dir_target/chr.sizes"
         . " $dir_query/chr.sizes"
         . " stdout"    # $dir_lav/target.chainnet
-        . " /dev/null" . " | netSyntenic" . " stdin" . " $dir_lav/noClass.net";
+        . " $dir_lav/query.chainnet" . " | netSyntenic" . " stdin" . " $dir_lav/noClass.net";
     exec_cmd($cmd);
 
     # netChainSubset - Create chain file with subset of chains that appear in
@@ -345,29 +346,31 @@ for ( $dir_lav, $dir_net, $dir_axtnet ) {
 #----------------------------------------------------------#
 {
     chdir $dir_lav;
-    my $cmd;
 
-    $cmd = "tar -czvf lav.tar.gz *.lav";    # bsdtar (mac) doesn't support  --remove-files
-    if ( !-e "$dir_lav/lav.tar.gz" ) {
-        exec_cmd($cmd);
-        for ( path($dir_lav)->children(qr/\.lav$/) ) {
-            $_->remove;
-        }
+    # bsdtar (mac) doesn't support  --remove-files
+    exec_cmd("tar -czvf lav.tar.gz *.lav");
+    for ( path($dir_lav)->children(qr/\.lav$/) ) {
+        $_->remove;
     }
 
+    exec_cmd("tar -czvf net.tar.gz net/") if $keeptmp;
     path( $dir_lav, "net" )->remove_tree;
+
+    exec_cmd("tar -czvf psl.tar.gz \\[*.psl") if $keeptmp;
     for ( path($dir_lav)->children(qr/^\[.+\.psl$/) ) {
         $_->remove;
     }
+
     for ( path($dir_lav)->children(qr/\.tmp$/) ) {
         $_->remove;
     }
 
+    exec_cmd("tar -czvf chain.tar.gz \\[*.chain") if $keeptmp;
     for ( path($dir_lav)->children(qr/^\[.+\.chain$/) ) {
         $_->remove;
     }
-    $cmd = "gzip *.chain";
-    exec_cmd($cmd);
+
+    exec_cmd("gzip *.chain");
 }
 
 print "\n";

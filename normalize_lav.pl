@@ -96,7 +96,7 @@ for my $lav (@lavs) {
             return $x;
         }
         else {
-            return $isrc ? $len1 - $q_to + $x : $t_from + $x - 1;
+            return $isrc ? $len1 - $q_to + $x : $q_from + $x - 1;
         }
     };
 

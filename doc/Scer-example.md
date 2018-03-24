@@ -123,9 +123,9 @@ perl ~/Scripts/egaz/part_seq.pl -i RM11_1a  -o RM11_1a_parted  --chunk 500000 --
 rm -fr S288cvsRM11_1a_parted
 perl ~/Scripts/egaz/bz.pl \
     -p 8 \
-    -dt S288c_parted -tp \
-    -dq RM11_1a_parted -qp \
-    -dl S288cvsRM11_1a_parted
+    --dt S288c_parted --tp \
+    --dq RM11_1a_parted --qp \
+    --dl S288cvsRM11_1a_parted
 ```
 
 Check axt positions.

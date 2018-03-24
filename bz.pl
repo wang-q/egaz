@@ -107,25 +107,25 @@ GetOptions(
     'help|?'          => sub { Getopt::Long::HelpMessage(0) },
     'dir_target|dt=s' => \my $dir_target,
     'dir_query|dq=s'  => \my $dir_query,
-    'dir_lav|dl=s' => \( my $dir_lav  = '.' ),
-    'parallel|p=i' => \( my $parallel = 1 ),
-    'specified|s=s' => \my $specified,
-    't_parted|tp'   => \my $t_parted,
-    'q_parted|qp'   => \my $q_parted,
-    'paired'        => \my $paired,
-    'is_self'       => \my $is_self,
-    'noaxt'         => \my $noaxt,
-    'O=s'           => \$opt{O},
-    'E=s'           => \$opt{E},
-    'Q=s'           => \$opt{Q},
-    'C=s'           => \$opt{C},
-    'T=s'           => \$opt{T},
-    'M=s'           => \$opt{M},
-    'K=s'           => \$opt{K},
-    'L=s'           => \$opt{L},
-    'H=s'           => \$opt{H},
-    'Y=s'           => \$opt{Y},
-    'Z=s'           => \$opt{Z},
+    'dir_lav|dl=s'    => \( my $dir_lav = '.' ),
+    'parallel|p=i'    => \( my $parallel = 1 ),
+    'specified|s=s'   => \my $specified,
+    't_parted|tp'     => \my $t_parted,
+    'q_parted|qp'     => \my $q_parted,
+    'paired'          => \my $paired,
+    'is_self'         => \my $is_self,
+    'noaxt'           => \my $noaxt,
+    'O=s'             => \$opt{O},
+    'E=s'             => \$opt{E},
+    'Q=s'             => \$opt{Q},
+    'C=s'             => \$opt{C},
+    'T=s'             => \$opt{T},
+    'M=s'             => \$opt{M},
+    'K=s'             => \$opt{K},
+    'L=s'             => \$opt{L},
+    'H=s'             => \$opt{H},
+    'Y=s'             => \$opt{Y},
+    'Z=s'             => \$opt{Z},
 ) or Getopt::Long::HelpMessage(1);
 
 #----------------------------------------------------------#
@@ -158,7 +158,7 @@ path($dir_lav)->mkpath;
 my ( @target_files, @query_files );
 if ($dir_target) {
     if ($t_parted) {
-        @target_files = File::Find::Rule->file->name('*[*]')->in($dir_target);
+        @target_files = File::Find::Rule->file->name(qr{\.fa\[.+\]$})->in($dir_target);
     }
     else {
         @target_files = File::Find::Rule->file->name('*.fa')->in($dir_target);
@@ -170,7 +170,7 @@ else {
 
 if ($dir_query) {
     if ($q_parted) {
-        @query_files = File::Find::Rule->file->name('*[*]')->in($dir_query);
+        @query_files = File::Find::Rule->file->name(qr{\.fa\[.+\]$})->in($dir_query);
     }
     else {
         @query_files = File::Find::Rule->file->name('*.fa')->in($dir_query);
@@ -193,8 +193,6 @@ printf "\n----%4s .fa files for query----\n",  scalar @query_files;
         my $job = $chunk_ref->[0];
 
         my ( $target, $query ) = split /\|/, $job;
-
-        print "Run lastz...\n";
 
         # naming the .lav file
         # remove .fa or .fa[1,10000]
@@ -228,7 +226,6 @@ printf "\n----%4s .fa files for query----\n",  scalar @query_files;
         }
         $bz_cmd .= " > $lav_file";
         exec_cmd($bz_cmd);
-        printf "\n.lav file generated. [%s]\n\n", path($lav_file)->basename;
 
         return;
     };
@@ -240,8 +237,7 @@ printf "\n----%4s .fa files for query----\n",  scalar @query_files;
             my $t_base = path($target_file)->basename;
             my ($query_file) = map { $_->[0] }
                 sort { $b->[1] <=> $a->[1] }
-                map { [ $_, compare( path($_)->basename, $t_base ) ] }
-                @query_files;
+                map { [ $_, compare( path($_)->basename, $t_base ) ] } @query_files;
             push @jobs, "$target_file|$query_file";
         }
     }
@@ -274,18 +270,10 @@ if ( $t_parted or $q_parted ) {
 
     my ( %t_length, %q_length );
     if ($t_parted) {
-        %t_length = %{
-            App::RL::Common::read_sizes(
-                path( $dir_target, 'chr.sizes' )->stringify
-            )
-        };
+        %t_length = %{ App::RL::Common::read_sizes( path( $dir_target, 'chr.sizes' )->stringify ) };
     }
     if ($q_parted) {
-        %q_length = %{
-            App::RL::Common::read_sizes(
-                path( $dir_query, 'chr.sizes' )->stringify
-            )
-        };
+        %q_length = %{ App::RL::Common::read_sizes( path( $dir_query, 'chr.sizes' )->stringify ) };
     }
 
     my $mce = MCE->new( chunk_size => 1, max_workers => $parallel, );
@@ -310,7 +298,6 @@ if ( $t_parted or $q_parted ) {
             my $t_len = $t_parted ? $t_length{$t_name} : 0;
             my $q_len = $q_parted ? $q_length{$q_name} : 0;
 
-            print "Run normalize lav...\n";
             my $cmd
                 = "perl $FindBin::RealBin/normalize_lav.pl"
                 . " -0 $t_len -1 $q_len"
@@ -318,7 +305,6 @@ if ( $t_parted or $q_parted ) {
 
             exec_cmd($cmd);
             path($file)->remove;
-            print ".lav file normalized.\n\n";
         }
     );
 }
@@ -342,10 +328,8 @@ if ( !$noaxt ) {
 
             my $file = $chunk_ref->[0];
 
-            print "Run lav2axt...\n";
             my $cmd = "perl $FindBin::RealBin/lav2axt.pl -i $file ";
             exec_cmd($cmd);
-            print ".axt file generated.\n\n";
         }
     );
 

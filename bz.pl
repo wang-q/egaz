@@ -54,7 +54,7 @@ bz.pl - execute lastz and lav2axt against two paths
       Scoring parameters:
         -O                  INT     gap-open penalty
         -E                  INT     gap-extension penalty
-        -Q                  INT     matrix file
+        -Q                  STR     matrix file
 
       Aligning parameters: 
         -C                  INT     chain option

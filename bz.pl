@@ -77,12 +77,6 @@ bz.pl - execute lastz and lav2axt against two paths
 
 Lastz will take the first sequence in target fasta file and all sequences in query fasta file.
 
-So if there are mutiple query files, the program uses the largest one. And all target files in
-dir_target will be processed.
-
-So, if there are combined fasta files and multi fasta files coexisting in the target directory, just
-delete the axt file matched with the combined fasta filename.
-
 Fasta file naming rules: "seqfile[from,to]"
 
 Lav file naming rules: "[target]vs[query].N.lav"

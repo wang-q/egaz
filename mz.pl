@@ -94,7 +94,7 @@ if ( scalar @files == 0 ) {
 #  1: ~/data/alignment/arabidopsis19/AthvsBur_0/mafNet/chr1.net.maf
 #  2: ...
 #lyrata_65:
-#  1: ~/data/alignment/arabidopsis19/AthvsLyrata_set01_4/mafNet/chr1.net.maf
+#  1: ~/data/alignment/arabidopsis19/AthvsLyrata/mafNet/chr1.net.maf
 #  2: ...
 
 my $file_of = {};    # all info here
@@ -250,7 +250,7 @@ my @chr_names = sort $file_of->{$target_name}{chr_set}->members;    # all target
 }
 
 unless ($out_dir) {
-    $out_dir = ucfirst $target_name . "_n" . ( scalars(@species) + 1 );
+    $out_dir = ucfirst $target_name . "_n" . ( scalar(@species) + 1 );
 }
 path($out_dir)->mkpath;
 

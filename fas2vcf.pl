@@ -76,7 +76,7 @@ my $length_of = App::RL::Common::read_sizes($size_file);
 
         for my $l (@lines) {
             if ( $l =~ /^\#\#contig\=\<ID\=/ ) {
-                $l = "##contig=<ID=$chr_name,length=@{[$length_of->{$chr_name}]}>";
+                $l = "##contig=<ID=$chr_name,length=$chr_length>";
             }
             if ( $l =~ /^chrUn\t/ ) {
                 my @fields = split /\t/, $l;
